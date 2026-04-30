@@ -1,8 +1,8 @@
 services:
   api:
     build:
-      context: ./API
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: API/Dockerfile
     container_name: learn_api
     restart: unless-stopped
     ports:

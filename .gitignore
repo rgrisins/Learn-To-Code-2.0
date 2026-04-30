@@ -1,0 +1,14 @@
+.vs/
+
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+
+*.user
+*.suo
+*.log
+
+.env
+.env.*
+!.env.example
