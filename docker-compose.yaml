@@ -29,9 +29,7 @@ services:
 
       Theory__Storage__BucketName: learn-to-code
       Theory__Storage__Prefix: theory
-      Theory__Storage__ManifestObject: index.json
       Theory__Storage__AutoCreateBucket: "true"
-      Theory__Storage__SeedDefaults: "true"
       Theory__Storage__CacheSeconds: "60"
 
   ui:

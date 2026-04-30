@@ -273,10 +273,10 @@ function arrangeQuizOptions(question: TheoryQuizQuestion): TheoryQuizOption[] {
   const options = [...question.options]
   if (options.length <= 1) return options
 
-  let seed = hashOptionSeed(`${question.id}:${question.prompt}`)
+  let shuffleState = hashOptionState(`${question.id}:${question.prompt}`)
   for (let index = options.length - 1; index > 0; index -= 1) {
-    seed = nextOptionSeed(seed)
-    const swapIndex = seed % (index + 1)
+    shuffleState = nextOptionState(shuffleState)
+    const swapIndex = shuffleState % (index + 1)
     ;[options[index], options[swapIndex]] = [options[swapIndex], options[index]]
   }
 
@@ -288,7 +288,7 @@ function arrangeQuizOptions(question: TheoryQuizQuestion): TheoryQuizOption[] {
   return options
 }
 
-function hashOptionSeed(value: string): number {
+function hashOptionState(value: string): number {
   let hash = 2166136261
   for (const character of value) {
     hash ^= character.charCodeAt(0)
@@ -298,8 +298,8 @@ function hashOptionSeed(value: string): number {
   return hash >>> 0
 }
 
-function nextOptionSeed(seed: number): number {
-  return (Math.imul(seed, 1664525) + 1013904223) >>> 0
+function nextOptionState(state: number): number {
+  return (Math.imul(state, 1664525) + 1013904223) >>> 0
 }
 
 function getQuestionSelectedOptionId(question: TheoryQuizQuestion): number | null {

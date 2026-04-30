@@ -639,6 +639,4 @@ static async Task EnsureApplicationTablesAsync(IServiceProvider services)
         ALTER TABLE IF EXISTS "Exercises" DROP COLUMN IF EXISTS "SampleOutputAlt";
         """);
 
-    await ExerciseSeeder.SeedAsync(dbContext);
-    await TheoryQuizSeeder.SeedAsync(dbContext);
 }

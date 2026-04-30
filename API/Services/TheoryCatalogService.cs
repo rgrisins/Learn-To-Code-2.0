@@ -13,7 +13,6 @@ namespace LearnToCode.API.Services;
 public class TheoryCatalogService
 {
     private const string PageSeparator = "\n---page---\n";
-    private const string SeedVersion = "python-pages-2026-04-28-v2";
 
     private readonly AppDbContext _dbContext;
     private readonly IMinioClient _minioClient;
@@ -34,8 +33,6 @@ public class TheoryCatalogService
 
     public async Task<IReadOnlyList<TheoryLanguageResponse>> GetLanguagesAsync(int? userId, CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
-
         var progress = userId.HasValue
             ? await _progressService.GetLanguageProgressPercentsAsync(userId.Value, cancellationToken)
             : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -64,7 +61,6 @@ public class TheoryCatalogService
 
     public async Task<TheoryLanguageDetailResponse?> GetLanguageAsync(string languageId, int? userId, CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
         var normalizedLanguageId = languageId.Trim().ToLowerInvariant();
 
         var language = await _dbContext.TheoryLanguages
@@ -156,8 +152,6 @@ public class TheoryCatalogService
 
     public async Task<TheoryPageResponse?> GetPageAsync(string languageId, string topicId, int page, int? userId, CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
-
         var topic = await FindTopicWithContentAsync(languageId, topicId, asNoTracking: true, cancellationToken);
 
         if (topic?.Language is null || topic.Content is null)
@@ -212,7 +206,6 @@ public class TheoryCatalogService
         int page,
         CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
         return await _progressService.MarkPageReadAsync(userId, languageId, topicId, page, cancellationToken);
     }
 
@@ -339,211 +332,11 @@ public class TheoryCatalogService
         }
     }
 
-    private async Task<IReadOnlyList<string>> ReadSeedPagesAsync(TheoryTopicSeed topicSeed, CancellationToken cancellationToken)
-    {
-        if (!UsesPagedMarkdownObjects(topicSeed.MarkdownObjectName))
-        {
-            var markdown = await ReadMarkdownObjectAsync(topicSeed.MarkdownObjectName, cancellationToken);
-            if (string.IsNullOrWhiteSpace(markdown))
-            {
-                throw new InvalidOperationException($"Theory seed object was not found in MinIO: {topicSeed.MarkdownObjectName}");
-            }
-
-            return SplitPages(markdown);
-        }
-
-        var pages = new List<string>();
-        for (var pageIndex = 1; ; pageIndex += 1)
-        {
-            var markdown = await ReadMarkdownObjectAsync(
-                BuildPageObjectName(topicSeed.MarkdownObjectName, pageIndex),
-                cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(markdown))
-            {
-                break;
-            }
-
-            pages.Add(markdown.Trim());
-        }
-
-        if (pages.Count == 0)
-        {
-            throw new InvalidOperationException($"Theory seed topic has no Markdown pages in MinIO: {topicSeed.MarkdownObjectName}");
-        }
-
-        return pages;
-    }
-
-    private async Task<Dictionary<string, IReadOnlyList<string>>> ReadSeedPagesByObjectNameAsync(
-        IEnumerable<TheoryLanguageSeed> languageSeeds,
-        CancellationToken cancellationToken)
-    {
-        var pagesByObjectName = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var topicSeed in languageSeeds.SelectMany(language => language.Topics))
-        {
-            pagesByObjectName[topicSeed.MarkdownObjectName] = await ReadSeedPagesAsync(topicSeed, cancellationToken);
-        }
-
-        return pagesByObjectName;
-    }
-
-    private async Task<IReadOnlyList<string>> GetSeedPagesAsync(
-        TheoryTopicSeed topicSeed,
-        Dictionary<string, IReadOnlyList<string>>? pagesByObjectName,
-        CancellationToken cancellationToken)
-    {
-        if (pagesByObjectName is not null &&
-            pagesByObjectName.TryGetValue(topicSeed.MarkdownObjectName, out var pages))
-        {
-            return pages;
-        }
-
-        return await ReadSeedPagesAsync(topicSeed, cancellationToken);
-    }
-
-    private async Task<bool> ShouldResetSeededTopicsAsync(CancellationToken cancellationToken)
-    {
-        var manifest = await ReadMarkdownObjectAsync(_options.ManifestObject, cancellationToken);
-        return manifest?.Contains(SeedVersion, StringComparison.Ordinal) != true;
-    }
-
-    private async Task WriteSeedManifestAsync(CancellationToken cancellationToken)
-    {
-        await PutMarkdownObjectAsync(
-            _options.ManifestObject,
-            $$"""
-            {
-              "seedVersion": "{{SeedVersion}}"
-            }
-            """,
-            cancellationToken);
-    }
-
-    private async Task ResetTheoryTopicsAsync(IReadOnlyCollection<TheoryLanguageSeed> languageSeeds, CancellationToken cancellationToken)
-    {
-        await _dbContext.TheoryPageReadProgresses.ExecuteDeleteAsync(cancellationToken);
-        await _dbContext.TheoryContents.ExecuteDeleteAsync(cancellationToken);
-        await _dbContext.TheoryTopics.ExecuteDeleteAsync(cancellationToken);
-
-        var seedLanguageCodes = languageSeeds
-            .Select(language => language.Title)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Hard-delete any languages that fall outside the seeded set.
-        var staleLanguages = await _dbContext.TheoryLanguages
-            .Where(language => !seedLanguageCodes.Contains(language.Title))
-            .ToListAsync(cancellationToken);
-
-        if (staleLanguages.Count > 0)
-        {
-            _dbContext.TheoryLanguages.RemoveRange(staleLanguages);
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await _progressService.InvalidateAllProgressCacheAsync(cancellationToken);
-    }
-
-    private async Task SeedDefaultTheoryAsync(CancellationToken cancellationToken)
-    {
-        if (!_options.SeedDefaults)
-        {
-            return;
-        }
-
-        var languageSeeds = GetDefaultTheorySeeds().ToList();
-        var resetTopics = await ShouldResetSeededTopicsAsync(cancellationToken);
-        Dictionary<string, IReadOnlyList<string>>? seedPagesByObjectName = null;
-
-        if (resetTopics)
-        {
-            seedPagesByObjectName = await ReadSeedPagesByObjectNameAsync(languageSeeds, cancellationToken);
-            await ResetTheoryTopicsAsync(languageSeeds, cancellationToken);
-        }
-
-        foreach (var languageSeed in languageSeeds)
-        {
-            var language = await _dbContext.TheoryLanguages
-                .Include(item => item.Topics)
-                    .ThenInclude(topic => topic.Content)
-                .FirstOrDefaultAsync(item => item.Title == languageSeed.Title, cancellationToken);
-
-            if (language is null)
-            {
-                language = new TheoryLanguage
-                {
-                    Title = languageSeed.Title,
-                    Description = languageSeed.Description,
-                    SortOrder = languageSeed.SortOrder,
-                };
-
-                _dbContext.TheoryLanguages.Add(language);
-            }
-
-            language.Title = languageSeed.Title;
-            language.Description = languageSeed.Description;
-            language.SortOrder = languageSeed.SortOrder;
-
-            foreach (var topicSeed in languageSeed.Topics)
-            {
-                var existingTopic = language.Topics.FirstOrDefault(topic =>
-                    string.Equals(topic.Title, topicSeed.Title, StringComparison.OrdinalIgnoreCase));
-                if (existingTopic is not null)
-                {
-                    existingTopic.Title = topicSeed.Title;
-                    existingTopic.Difficulty = topicSeed.Difficulty;
-                    existingTopic.Description = topicSeed.Description;
-                    existingTopic.EstimatedMinutes = topicSeed.EstimatedMinutes;
-                    existingTopic.SortOrder = topicSeed.SortOrder;
-
-                    if (existingTopic.Content is null)
-                    {
-                        var restoredPages = await GetSeedPagesAsync(topicSeed, seedPagesByObjectName, cancellationToken);
-
-                        existingTopic.Content = new TheoryContent
-                        {
-                            MarkdownObjectName = topicSeed.MarkdownObjectName,
-                            PageCount = restoredPages.Count,
-                        };
-                    }
-                    else
-                    {
-                        existingTopic.Content.MarkdownObjectName = topicSeed.MarkdownObjectName;
-                    }
-
-                    continue;
-                }
-
-                var seedPages = await GetSeedPagesAsync(topicSeed, seedPagesByObjectName, cancellationToken);
-
-                language.Topics.Add(new TheoryTopic
-                {
-                    Title = topicSeed.Title,
-                    Difficulty = topicSeed.Difficulty,
-                    Description = topicSeed.Description,
-                    EstimatedMinutes = topicSeed.EstimatedMinutes,
-                    SortOrder = topicSeed.SortOrder,
-                    Content = new TheoryContent
-                    {
-                        MarkdownObjectName = topicSeed.MarkdownObjectName,
-                        PageCount = seedPages.Count,
-                    },
-                });
-            }
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        await WriteSeedManifestAsync(cancellationToken);
-    }
-
     public async Task<(bool Success, string? Error)> DeleteTopicAsync(
         string languageCode,
         string topicSlug,
         CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
-
         var normalizedLanguageCode = languageCode.Trim().ToLowerInvariant();
 
         var topic = await FindTopicWithContentAsync(normalizedLanguageCode, topicSlug, asNoTracking: false, cancellationToken);
@@ -573,8 +366,6 @@ public class TheoryCatalogService
         int page,
         CancellationToken cancellationToken)
     {
-        await SeedDefaultTheoryAsync(cancellationToken);
-
         var normalizedLanguageCode = languageCode.Trim().ToLowerInvariant();
 
         var topic = await FindTopicWithContentAsync(normalizedLanguageCode, topicSlug, asNoTracking: false, cancellationToken);
@@ -903,73 +694,4 @@ public class TheoryCatalogService
             .ToList();
     }
 
-    private static IEnumerable<TheoryLanguageSeed> GetDefaultTheorySeeds()
-    {
-        return
-        [
-            new TheoryLanguageSeed(
-                Title: "Python",
-                Description: "Lasāma, praktiska valoda pirmajiem soļiem, automatizācijai, datu apstrādei un tīmekļa lietotnēm.",
-                SortOrder: 1,
-                Topics:
-                [
-                    new TheoryTopicSeed(
-                        Title: "Ievads un darba vide",
-                        Difficulty: "Iesācējs",
-                        Description: "Python loma, interpretators, failu palaišana, REPL un pirmā programma.",
-                        EstimatedMinutes: 30,
-                        SortOrder: 1,
-                        MarkdownObjectName: "python/ievads-un-vide"),
-                    new TheoryTopicSeed(
-                        Title: "Mainīgie un datu tipi",
-                        Difficulty: "Iesācējs",
-                        Description: "Vērtību saglabāšana, skaitļi, teksts, booleans, None un tipu pārveidošana.",
-                        EstimatedMinutes: 35,
-                        SortOrder: 2,
-                        MarkdownObjectName: "python/mainigie-un-tipi"),
-                    new TheoryTopicSeed(
-                        Title: "Nosacījumi un loģika",
-                        Difficulty: "Iesācējs",
-                        Description: "if, elif, else, salīdzinājumi, loģiskie operatori un patiesuma vērtības.",
-                        EstimatedMinutes: 30,
-                        SortOrder: 3,
-                        MarkdownObjectName: "python/nosacijumi-un-logika"),
-                    new TheoryTopicSeed(
-                        Title: "Cikli",
-                        Difficulty: "Iesācējs",
-                        Description: "for, while, range, iterēšana, break, continue un droši ciklu paradumi.",
-                        EstimatedMinutes: 35,
-                        SortOrder: 4,
-                        MarkdownObjectName: "python/cikli"),
-                ]),
-            new TheoryLanguageSeed(
-                Title: "Java",
-                Description: "Stipri tipizēta, objektorientēta valoda lielām lietotnēm un Android.",
-                SortOrder: 2,
-                Topics:
-                [
-                    new TheoryTopicSeed(
-                        Title: "Java ievads un darba vide",
-                        Difficulty: "Iesācējs",
-                        Description: "JVM, .java pirmkods, kompilācija ar javac un palaišana ar java.",
-                        EstimatedMinutes: 25,
-                        SortOrder: 1,
-                        MarkdownObjectName: "java/ievads-un-vide"),
-                ]),
-        ];
-    }
-
-    private sealed record TheoryLanguageSeed(
-        string Title,
-        string Description,
-        int SortOrder,
-        IReadOnlyList<TheoryTopicSeed> Topics);
-
-    private sealed record TheoryTopicSeed(
-        string Title,
-        string Difficulty,
-        string Description,
-        int EstimatedMinutes,
-        int SortOrder,
-        string MarkdownObjectName);
 }
