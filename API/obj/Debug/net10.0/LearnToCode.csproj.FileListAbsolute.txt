@@ -204,3 +204,4 @@ C:\Users\rgris\source\repos\LearnToCode\.codex-build\api\LearnToCode.runtimeconf
 C:\Users\rgris\source\repos\LearnToCode\.codex-build\api\LearnToCode.dll
 C:\Users\rgris\source\repos\LearnToCode\.codex-build\api\LearnToCode.pdb
 C:\Users\rgris\source\repos\LearnToCode\API\bin\Debug\net10.0\TheoryContent\java\ievads-un-vide\page-01.md
+C:\Users\rgris\source\repos\LearnToCode\API\obj\Debug\net10.0\LearnToCode.sourcelink.json
