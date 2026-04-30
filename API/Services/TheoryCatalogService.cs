@@ -16,20 +16,17 @@ public class TheoryCatalogService
     private const string SeedVersion = "python-pages-2026-04-28-v2";
 
     private readonly AppDbContext _dbContext;
-    private readonly IHostEnvironment _environment;
     private readonly IMinioClient _minioClient;
     private readonly TheoryStorageOptions _options;
     private readonly TheoryProgressService _progressService;
 
     public TheoryCatalogService(
         AppDbContext dbContext,
-        IHostEnvironment environment,
         IMinioClient minioClient,
         IOptions<TheoryStorageOptions> options,
         TheoryProgressService progressService)
     {
         _dbContext = dbContext;
-        _environment = environment;
         _minioClient = minioClient;
         _options = options.Value;
         _progressService = progressService;
@@ -344,33 +341,66 @@ public class TheoryCatalogService
 
     private async Task<IReadOnlyList<string>> ReadSeedPagesAsync(TheoryTopicSeed topicSeed, CancellationToken cancellationToken)
     {
-        var topicDirectory = Path.Combine(
-            _environment.ContentRootPath,
-            "TheoryContent",
-            topicSeed.MarkdownObjectName.Replace('/', Path.DirectorySeparatorChar));
-
-        if (!Directory.Exists(topicDirectory))
+        if (!UsesPagedMarkdownObjects(topicSeed.MarkdownObjectName))
         {
-            throw new DirectoryNotFoundException($"Theory seed directory was not found: {topicDirectory}");
+            var markdown = await ReadMarkdownObjectAsync(topicSeed.MarkdownObjectName, cancellationToken);
+            if (string.IsNullOrWhiteSpace(markdown))
+            {
+                throw new InvalidOperationException($"Theory seed object was not found in MinIO: {topicSeed.MarkdownObjectName}");
+            }
+
+            return SplitPages(markdown);
         }
 
-        var pageFiles = Directory
-            .EnumerateFiles(topicDirectory, "*.md", SearchOption.TopDirectoryOnly)
-            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (pageFiles.Count == 0)
+        var pages = new List<string>();
+        for (var pageIndex = 1; ; pageIndex += 1)
         {
-            throw new InvalidOperationException($"Theory seed topic has no Markdown pages: {topicSeed.MarkdownObjectName}");
+            var markdown = await ReadMarkdownObjectAsync(
+                BuildPageObjectName(topicSeed.MarkdownObjectName, pageIndex),
+                cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(markdown))
+            {
+                break;
+            }
+
+            pages.Add(markdown.Trim());
         }
 
-        var pages = new List<string>(pageFiles.Count);
-        foreach (var pageFile in pageFiles)
+        if (pages.Count == 0)
         {
-            pages.Add((await File.ReadAllTextAsync(pageFile, Encoding.UTF8, cancellationToken)).Trim());
+            throw new InvalidOperationException($"Theory seed topic has no Markdown pages in MinIO: {topicSeed.MarkdownObjectName}");
         }
 
         return pages;
+    }
+
+    private async Task<Dictionary<string, IReadOnlyList<string>>> ReadSeedPagesByObjectNameAsync(
+        IEnumerable<TheoryLanguageSeed> languageSeeds,
+        CancellationToken cancellationToken)
+    {
+        var pagesByObjectName = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var topicSeed in languageSeeds.SelectMany(language => language.Topics))
+        {
+            pagesByObjectName[topicSeed.MarkdownObjectName] = await ReadSeedPagesAsync(topicSeed, cancellationToken);
+        }
+
+        return pagesByObjectName;
+    }
+
+    private async Task<IReadOnlyList<string>> GetSeedPagesAsync(
+        TheoryTopicSeed topicSeed,
+        Dictionary<string, IReadOnlyList<string>>? pagesByObjectName,
+        CancellationToken cancellationToken)
+    {
+        if (pagesByObjectName is not null &&
+            pagesByObjectName.TryGetValue(topicSeed.MarkdownObjectName, out var pages))
+        {
+            return pages;
+        }
+
+        return await ReadSeedPagesAsync(topicSeed, cancellationToken);
     }
 
     private async Task<bool> ShouldResetSeededTopicsAsync(CancellationToken cancellationToken)
@@ -424,8 +454,11 @@ public class TheoryCatalogService
 
         var languageSeeds = GetDefaultTheorySeeds().ToList();
         var resetTopics = await ShouldResetSeededTopicsAsync(cancellationToken);
+        Dictionary<string, IReadOnlyList<string>>? seedPagesByObjectName = null;
+
         if (resetTopics)
         {
+            seedPagesByObjectName = await ReadSeedPagesByObjectNameAsync(languageSeeds, cancellationToken);
             await ResetTheoryTopicsAsync(languageSeeds, cancellationToken);
         }
 
@@ -466,8 +499,7 @@ public class TheoryCatalogService
 
                     if (existingTopic.Content is null)
                     {
-                        var restoredPages = await ReadSeedPagesAsync(topicSeed, cancellationToken);
-                        await WriteTopicPagesAsync(topicSeed.MarkdownObjectName, restoredPages, cancellationToken);
+                        var restoredPages = await GetSeedPagesAsync(topicSeed, seedPagesByObjectName, cancellationToken);
 
                         existingTopic.Content = new TheoryContent
                         {
@@ -483,8 +515,7 @@ public class TheoryCatalogService
                     continue;
                 }
 
-                var seedPages = await ReadSeedPagesAsync(topicSeed, cancellationToken);
-                await WriteTopicPagesAsync(topicSeed.MarkdownObjectName, seedPages, cancellationToken);
+                var seedPages = await GetSeedPagesAsync(topicSeed, seedPagesByObjectName, cancellationToken);
 
                 language.Topics.Add(new TheoryTopic
                 {

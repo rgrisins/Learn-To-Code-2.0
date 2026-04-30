@@ -24,8 +24,4 @@
     <Folder Include="Controllers\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="TheoryContent\**\*.md" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>
