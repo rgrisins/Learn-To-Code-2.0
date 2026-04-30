@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="API/LearnToCode.csproj" />
+  <Project Path="Data/LearnToCode.Data.csproj" />
+</Solution>

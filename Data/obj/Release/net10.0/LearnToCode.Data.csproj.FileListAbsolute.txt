@@ -1,0 +1,14 @@
+C:\Users\rgris\source\repos\LearnToCode\Data\bin\Release\net10.0\LearnToCode.Data.deps.json
+C:\Users\rgris\source\repos\LearnToCode\Data\bin\Release\net10.0\LearnToCode.Data.runtimeconfig.json
+C:\Users\rgris\source\repos\LearnToCode\Data\bin\Release\net10.0\LearnToCode.Data.dll
+C:\Users\rgris\source\repos\LearnToCode\Data\bin\Release\net10.0\LearnToCode.Data.pdb
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.csproj.AssemblyReference.cache
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.AssemblyInfoInputs.cache
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.AssemblyInfo.cs
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.csproj.CoreCompileInputs.cache
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.dll
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\refint\LearnToCode.Data.dll
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.pdb
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\LearnToCode.Data.genruntimeconfig.cache
+C:\Users\rgris\source\repos\LearnToCode\Data\obj\Release\net10.0\ref\LearnToCode.Data.dll

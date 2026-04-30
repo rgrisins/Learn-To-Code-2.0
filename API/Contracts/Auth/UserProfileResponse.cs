@@ -1,0 +1,26 @@
+namespace LearnToCode.API.Contracts.Auth;
+
+public class UserProfileResponse
+{
+    public int Id { get; set; }
+
+    public string? Username { get; set; }
+
+    public string? FirstName { get; set; }
+
+    public string? LastName { get; set; }
+
+    public DateOnly? BirthDate { get; set; }
+
+    public string FullName { get; set; } = string.Empty;
+
+    public string Email { get; set; } = string.Empty;
+
+    public string Role { get; set; } = string.Empty;
+
+    public string? EducationInstitution { get; set; }
+
+    public int Rating { get; set; }
+
+    public DateTime CreatedAtUtc { get; set; }
+}
