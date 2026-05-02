@@ -76,6 +76,7 @@ export interface PublicUserProfile {
   role: string
   representation?: string | null
   bio?: string | null
+  birthDate?: string | null
   rating: number
   createdAtUtc: string
   stats: ProfileStats
@@ -196,8 +197,8 @@ export async function getProfileStats() {
   return response.json() as Promise<ProfileStats>
 }
 
-export async function getPublicUserProfile(userId: number) {
-  const response = await apiRequest(`/api/profile/users/${encodeURIComponent(userId)}`, {
+export async function getPublicUserProfile(username: string) {
+  const response = await apiRequest(`/api/profile/users/${encodeURIComponent(username)}`, {
     skipAuth: true,
     skipAuthRefresh: true,
   })

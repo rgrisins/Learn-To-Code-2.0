@@ -12,7 +12,7 @@ const error = ref<string | null>(null)
 const search = ref('')
 const diffFilter = ref('all')
 const solvedFilter = ref('all')
-const sortField = ref<'title' | 'difficulty' | 'tests'>('title')
+const sortField = ref<'title' | 'difficulty' | 'tests' | 'completion'>('title')
 const sortDir = ref<'asc' | 'desc'>('asc')
 const currentPage = ref(1)
 const pageSize = 20
@@ -58,6 +58,9 @@ const filtered = computed(() => {
       cmp = (diffOrder[a.difficulty.toLowerCase()] ?? 9) - (diffOrder[b.difficulty.toLowerCase()] ?? 9)
     }
     if (sortField.value === 'tests') cmp = a.testCaseCount - b.testCaseCount
+    if (sortField.value === 'completion') {
+      cmp = (a.solvedAttemptPercent ?? 0) - (b.solvedAttemptPercent ?? 0)
+    }
     return sortDir.value === 'asc' ? cmp : -cmp
   })
 })
@@ -113,9 +116,16 @@ function sortIcon(field: typeof sortField.value) {
 
 function diffClass(d: string) {
   const v = d.toLowerCase()
-  if (v === 'viegls' || v === 'easy') return 'diff-easy'
-  if (v === 'grūts' || v === 'hard') return 'diff-hard'
-  return 'diff-medium'
+  if (v === 'viegls' || v === 'easy') return 'theory-difficulty--iesācējs'
+  if (v === 'grūts' || v === 'hard') return 'theory-difficulty--augsts'
+  return 'theory-difficulty--vidējs'
+}
+
+function diffLabel(d: string) {
+  const v = d.toLowerCase()
+  if (v === 'viegls' || v === 'easy') return 'Viegls'
+  if (v === 'grūts' || v === 'hard') return 'Grūts'
+  return 'Vidējs'
 }
 
 function attemptLabel(exercise: ExerciseListItem) {
@@ -126,6 +136,11 @@ function attemptLabel(exercise: ExerciseListItem) {
   return `${exercise.attemptedUserCount} mēģ.`
 }
 
+function solvedCount(exercise: ExerciseListItem): number {
+  if (!exercise.attemptedUserCount) return 0
+  return Math.round((exercise.attemptedUserCount * (exercise.solvedAttemptPercent ?? 0)) / 100)
+}
+
 function goTo(id: number) {
   router.push({ name: 'exercise', params: { id } })
 }
@@ -133,23 +148,35 @@ function goTo(id: number) {
 
 <template>
   <section class="content-panel card border-primary-subtle">
-    <div class="card-body p-3 p-lg-4">
-      <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-4">
-        <h1 class="section-heading mb-0">Programmēšanas uzdevumi</h1>
-        <RouterLink v-if="canCreateExercises" class="btn btn-primary btn-sm" to="/tasks">
-          Izveidot uzdevumu
-        </RouterLink>
+    <div class="card-body p-3 p-lg-4 theory-panel__body">
+      <div class="theory-header exercises-header">
+        <span class="exercises-header__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+          </svg>
+        </span>
+        <div class="theory-heading-copy">
+          <h1 class="section-heading mb-0">Programmēšanas uzdevumi</h1>
+        </div>
+        <div v-if="canCreateExercises" class="theory-header__actions">
+          <RouterLink class="btn btn-primary btn-sm" to="/tasks">
+            Izveidot uzdevumu
+          </RouterLink>
+        </div>
       </div>
 
-      <div class="ex-toolbar mb-3">
+      <hr class="profile-section-divider" />
+
+      <div class="theory-topics-controls">
         <input
           v-model="search"
           type="search"
-          class="ex-search auth-input"
+          class="theory-search auth-input"
           placeholder="Meklēt uzdevumu..."
         />
 
-        <div class="ex-filter-group">
+        <div class="theory-filter-group">
           <button
             v-for="d in ['all', 'viegls', 'vidējs', 'grūts']"
             :key="d"
@@ -162,7 +189,7 @@ function goTo(id: number) {
           </button>
         </div>
 
-        <div class="ex-filter-group">
+        <div class="theory-filter-group">
           <button
             v-for="s in [{ v: 'all', l: 'Visi' }, { v: 'solved', l: 'Izpildīti' }, { v: 'unsolved', l: 'Nav izpildīti' }]"
             :key="s.v"
@@ -174,68 +201,66 @@ function goTo(id: number) {
             {{ s.l }}
           </button>
         </div>
+
+        <div class="theory-filter-group">
+          <button
+            type="button"
+            class="ex-filter-btn"
+            :class="{ active: sortField === 'completion' }"
+            :title="'Kārtot pēc izpildīšanas procenta'"
+            @click="toggleSort('completion')"
+          >
+            Pēc % {{ sortField === 'completion' ? sortIcon('completion') : '↕' }}
+          </button>
+        </div>
       </div>
 
-      <div v-if="loading" class="text-secondary-emphasis small py-3">Ielādē...</div>
-      <div v-else-if="error" class="text-danger small py-3">{{ error }}</div>
-      <div v-else-if="!filtered.length" class="text-secondary-emphasis small py-3">
+      <div v-if="loading" class="theory-empty">Ielādē...</div>
+      <div v-else-if="error" class="alert alert-danger mb-0">{{ error }}</div>
+      <div v-else-if="!filtered.length" class="theory-empty">
         Nav uzdevumu, kas atbilst filtriem.
       </div>
 
       <template v-else>
-        <div class="ex-table-wrap">
-          <table class="ex-table">
-            <thead>
-              <tr>
-                <th class="ex-col-status"></th>
-                <th class="ex-col-title ex-sortable" @click="toggleSort('title')">
-                  Nosaukums <span class="ex-sort-icon">{{ sortIcon('title') }}</span>
-                </th>
-                <th class="ex-col-diff ex-sortable" @click="toggleSort('difficulty')">
-                  Grūtība <span class="ex-sort-icon">{{ sortIcon('difficulty') }}</span>
-                </th>
-                <th class="ex-col-language">
-                  Rekomendējamā valoda
-                </th>
-                <th class="ex-col-tests ex-sortable" @click="toggleSort('tests')">
-                  Testi <span class="ex-sort-icon">{{ sortIcon('tests') }}</span>
-                </th>
-                <th class="ex-col-submissions">Iesniegumi</th>
-                <th class="ex-col-success">Izpildīja</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="ex in pagedExercises"
-                :key="ex.id"
-                class="ex-table-row"
-                :class="{ 'ex-row-solved': ex.isSolved }"
-                @click="goTo(ex.id)"
-              >
-                <td class="ex-col-status">
-                  <span v-if="ex.isSolved" class="ex-solved-mark">✓</span>
-                </td>
-                <td class="ex-col-title">
-                  <span class="ex-title-text">{{ ex.title }}</span>
-                  <small class="ex-desc-preview">{{ ex.description }}</small>
-                </td>
-                <td class="ex-col-diff">
-                  <span class="ex-diff-badge" :class="diffClass(ex.difficulty)">
-                    {{ ex.difficulty }}
-                  </span>
-                </td>
-                <td class="ex-col-language">
-                  <span class="ex-language-tag">{{ languageLabel(ex.languageCode, ex.languageVersion) }}</span>
-                </td>
-                <td class="ex-col-tests">{{ ex.testCaseCount }}</td>
-                <td class="ex-col-submissions">{{ ex.submissionCount }}</td>
-                <td class="ex-col-success">
-                  <strong>{{ ex.solvedAttemptPercent }}%</strong>
-                  <small>{{ attemptLabel(ex) }}</small>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="theory-list theory-list--topics">
+          <article
+            v-for="ex in pagedExercises"
+            :key="ex.id"
+            class="theory-list-item"
+            :class="{ 'theory-list-item--done': ex.isSolved }"
+            role="button"
+            tabindex="0"
+            @click="goTo(ex.id)"
+            @keydown.enter.self.prevent="goTo(ex.id)"
+            @keydown.space.self.prevent="goTo(ex.id)"
+          >
+            <div class="theory-list-item__badges">
+              <span class="theory-difficulty" :class="diffClass(ex.difficulty)">
+                {{ diffLabel(ex.difficulty) }}
+              </span>
+              <span class="theory-volume">{{ ex.testCaseCount }} testi</span>
+            </div>
+            <div class="theory-list-item__body">
+              <strong>
+                <span v-if="ex.isSolved" class="ex-solved-mark me-2" aria-label="Izpildīts">✓</span>
+                {{ ex.title }}
+              </strong>
+              <span>{{ ex.description }}</span>
+            </div>
+            <div class="theory-list-item__meta">
+              <div class="theory-language-meta-count">
+                <span class="ex-language-chip">{{ languageLabel(ex.languageCode, ex.languageVersion) }}</span>
+                <span class="theory-card__kicker">{{ ex.submissionCount }} iesniegumi</span>
+              </div>
+              <div class="exercises-completion">
+                <span class="theory-card__progress">{{ ex.solvedAttemptPercent }}% izpildīja</span>
+                <span class="exercises-completion__count">
+                  <template v-if="ex.attemptedUserCount === 0">Nav mēģinājumu</template>
+                  <template v-else>{{ solvedCount(ex) }} no {{ ex.attemptedUserCount }} cilv.</template>
+                </span>
+              </div>
+            </div>
+          </article>
         </div>
 
         <div class="pagination-row mt-3">

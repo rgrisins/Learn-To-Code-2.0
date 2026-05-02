@@ -130,14 +130,20 @@ public class ProfileController : ControllerBase
         return Ok(await BuildStatsAsync(userId.Value, cancellationToken));
     }
 
-    [HttpGet("users/{userId:int}")]
+    [HttpGet("users/{username}")]
     [AllowAnonymous]
-    public async Task<ActionResult<PublicUserProfileResponse>> PublicProfile(int userId, CancellationToken cancellationToken)
+    public async Task<ActionResult<PublicUserProfileResponse>> PublicProfile(string username, CancellationToken cancellationToken)
     {
+        var normalized = username.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return NotFound(new { message = "Lietotājs nav atrasts." });
+        }
+
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                item => item.Id == userId && item.Role != UserRole.Administrators,
+                item => item.Username == normalized && item.Role != UserRole.Administrators,
                 cancellationToken);
 
         if (user is null)
@@ -153,6 +159,7 @@ public class ProfileController : ControllerBase
             Role = user.Role.ToString(),
             Representation = user.Representation,
             Bio = user.Bio,
+            BirthDate = user.BirthDate,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
             Stats = await BuildStatsAsync(user.Id, cancellationToken),

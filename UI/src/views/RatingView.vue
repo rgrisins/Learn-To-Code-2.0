@@ -255,9 +255,14 @@ function formatAverage(values: number[]) {
                   <td class="rating-table__rank">{{ index + 1 }}</td>
                   <td>
                     <div class="rating-user-cell">
-                      <router-link class="rating-user-link" :to="{ name: 'public-profile', params: { id: user.id } }">
+                      <router-link
+                        v-if="user.username"
+                        class="rating-user-link"
+                        :to="{ name: 'public-profile', params: { username: user.username } }"
+                      >
                         {{ getDisplayName(user) }}
                       </router-link>
+                      <span v-else>{{ getDisplayName(user) }}</span>
                     </div>
                   </td>
                   <td>{{ user.representation || 'Nav norādīta' }}</td>

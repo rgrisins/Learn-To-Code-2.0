@@ -359,16 +359,17 @@ function formatDate(value: string) {
               </div>
 
               <div v-else class="representation-member-list">
-                <router-link
+                <component
+                  :is="member.username ? 'router-link' : 'div'"
                   v-for="member in topMembers"
                   :key="member.userId"
                   class="representation-member"
-                  :to="{ name: 'public-profile', params: { id: member.userId } }"
+                  :to="member.username ? { name: 'public-profile', params: { username: member.username } } : undefined"
                 >
                   <span>{{ getMemberName(member) }}</span>
                   <small>{{ member.role }}</small>
                   <strong>{{ member.rating }}</strong>
-                </router-link>
+                </component>
               </div>
             </div>
           </template>

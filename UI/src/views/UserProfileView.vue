@@ -28,7 +28,7 @@ const profile = ref<PublicUserProfile | null>(null)
 const isLoading = ref(false)
 const profileError = ref('')
 
-const profileId = computed(() => Number(route.params.id))
+const profileUsername = computed(() => String(route.params.username ?? '').trim().toLowerCase())
 const isOwnProfile = computed(() => authState.user?.id === profile.value?.id)
 const displayName = computed(() => {
   const user = profile.value
@@ -48,7 +48,7 @@ const sortedTheoryLanguages = computed(() => {
 })
 
 onMounted(loadProfile)
-watch(profileId, () => {
+watch(profileUsername, () => {
   void loadProfile()
 })
 
@@ -56,14 +56,14 @@ async function loadProfile() {
   profileError.value = ''
   profile.value = null
 
-  if (!Number.isInteger(profileId.value) || profileId.value <= 0) {
+  if (!profileUsername.value) {
     profileError.value = 'Lietotājs nav atrasts.'
     return
   }
 
   isLoading.value = true
   try {
-    profile.value = await getPublicUserProfile(profileId.value)
+    profile.value = await getPublicUserProfile(profileUsername.value)
   } catch (error) {
     profileError.value = error instanceof Error ? error.message : 'Neizdevās ielādēt profilu.'
   } finally {
@@ -102,14 +102,8 @@ function formatDate(value: string) {
 
     <section class="content-panel card border-primary-subtle">
       <div class="card-body p-3 p-lg-4">
-      <div class="public-profile__header mb-4">
-        <div>
-          <h1 class="section-heading mb-1">{{ displayName }}</h1>
-          <p v-if="profile?.fullName && profile.fullName !== displayName" class="profile-public-lead mb-0">
-            {{ profile.fullName }}
-          </p>
-        </div>
-        <router-link v-if="isOwnProfile" class="btn btn-primary" :to="{ name: 'profile' }">
+      <div v-if="isOwnProfile" class="public-profile__header mb-3">
+        <router-link class="btn btn-primary" :to="{ name: 'profile' }">
           Mans profils
         </router-link>
       </div>
@@ -123,8 +117,10 @@ function formatDate(value: string) {
             <span class="profile-avatar">{{ displayName.slice(0, 1).toUpperCase() }}</span>
             <div class="profile-hero__details">
               <p class="section-kicker mb-2">Publiskais profils</p>
-              <h2 class="section-heading mb-1">{{ displayName }}</h2>
-              <p class="profile-public-lead mb-0">{{ profile.role }} · pievienojās {{ formatDate(profile.createdAtUtc) }}</p>
+              <h1 class="section-heading mb-1">{{ displayName }}</h1>
+              <p class="profile-public-lead mb-0">
+                <template v-if="profile.fullName && profile.fullName !== displayName">{{ profile.fullName }} · </template>pievienojās {{ formatDate(profile.createdAtUtc) }}
+              </p>
             </div>
           </div>
 
@@ -145,7 +141,11 @@ function formatDate(value: string) {
             <span class="profile-stat__label">Loma</span>
             <strong>{{ profile.role }}</strong>
           </div>
-          <div class="profile-stat profile-stat--wide">
+          <div class="profile-stat">
+            <span class="profile-stat__label">Dzimšanas datums</span>
+            <strong>{{ profile.birthDate ? formatDate(profile.birthDate) : 'Nav norādīts' }}</strong>
+          </div>
+          <div class="profile-stat profile-stat--wide-2">
             <span class="profile-stat__label">Pārstāvniecība</span>
             <strong>{{ profile.representation || 'Nav norādīta' }}</strong>
           </div>
@@ -234,15 +234,18 @@ function formatDate(value: string) {
                 </div>
               </div>
 
-              <div v-if="profile.stats.mostUsedExerciseLanguage" class="profile-favourite-language">
+              <div class="profile-favourite-language">
                 <img
+                  v-if="profile.stats.mostUsedExerciseLanguage"
                   class="profile-favourite-language__icon"
                   :src="getExerciseLanguageImageUrl(profile.stats.mostUsedExerciseLanguage)"
                   :alt="languageLabel(profile.stats.mostUsedExerciseLanguage)"
                 />
+                <div v-else class="profile-favourite-language__icon profile-favourite-language__icon--empty" aria-hidden="true">?</div>
                 <div class="profile-favourite-language__text">
                   <span class="profile-favourite-language__label">Visbiežāk lietotā valoda</span>
-                  <strong>{{ languageLabel(profile.stats.mostUsedExerciseLanguage) }}</strong>
+                  <strong v-if="profile.stats.mostUsedExerciseLanguage">{{ languageLabel(profile.stats.mostUsedExerciseLanguage) }}</strong>
+                  <strong v-else class="profile-favourite-language__placeholder">Pagaidām nav datu</strong>
                 </div>
               </div>
             </section>

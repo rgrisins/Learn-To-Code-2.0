@@ -11,6 +11,7 @@ import {
 } from '../services/auth'
 import { createRoleRequest, getMyRoleRequests, type RoleRequest } from '../services/roleRequests'
 import algoritmiLogo from '../assets/algoritmi.png'
+import BirthDatePicker from '../components/BirthDatePicker.vue'
 
 function getLanguageImageUrl(language: { languageId: string; title: string }): string {
   if (language.title.trim().toLowerCase() === 'algoritmi') return algoritmiLogo
@@ -94,6 +95,17 @@ onMounted(() => {
     void loadProfileStats()
   }
 })
+
+function formatJoinedDate(value?: string | null) {
+  if (!value) return 'Nav datu'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('lv-LV', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
 
 function formatBirthDateDisplay(isoDate?: string | null) {
   if (!isoDate) {
@@ -329,7 +341,9 @@ async function confirmLogout() {
           <div class="profile-hero__details">
             <p class="section-kicker mb-2">Mans profils</p>
             <h1 class="section-heading mb-1">{{ displayName }}</h1>
-            <p class="profile-public-lead mb-0">{{ user.fullName }} · {{ user.role }}</p>
+            <p class="profile-public-lead mb-0">
+              <template v-if="user.fullName">{{ user.fullName }} · </template>pievienojās {{ formatJoinedDate(user.createdAtUtc) }}
+            </p>
           </div>
         </div>
 
@@ -362,7 +376,11 @@ async function confirmLogout() {
           <span class="profile-stat__label">E-pasts</span>
           <strong>{{ user.email }}</strong>
         </div>
-        <div class="profile-stat profile-stat--wide">
+        <div class="profile-stat">
+          <span class="profile-stat__label">Loma</span>
+          <strong>{{ user.role }}</strong>
+        </div>
+        <div class="profile-stat profile-stat--wide-2">
           <span class="profile-stat__label">Pārstāvniecība</span>
           <strong>{{ user.representation || 'Nav norādīta' }}</strong>
         </div>
@@ -461,15 +479,18 @@ async function confirmLogout() {
                 </div>
               </div>
 
-              <div v-if="profileStats?.mostUsedExerciseLanguage" class="profile-favourite-language">
+              <div class="profile-favourite-language">
                 <img
+                  v-if="profileStats?.mostUsedExerciseLanguage"
                   class="profile-favourite-language__icon"
                   :src="getExerciseLanguageImageUrl(profileStats.mostUsedExerciseLanguage)"
                   :alt="languageLabel(profileStats.mostUsedExerciseLanguage)"
                 />
+                <div v-else class="profile-favourite-language__icon profile-favourite-language__icon--empty" aria-hidden="true">?</div>
                 <div class="profile-favourite-language__text">
                   <span class="profile-favourite-language__label">Visbiežāk lietotā valoda</span>
-                  <strong>{{ languageLabel(profileStats.mostUsedExerciseLanguage) }}</strong>
+                  <strong v-if="profileStats?.mostUsedExerciseLanguage">{{ languageLabel(profileStats.mostUsedExerciseLanguage) }}</strong>
+                  <strong v-else class="profile-favourite-language__placeholder">Pagaidām nav datu</strong>
                 </div>
               </div>
             </template>
@@ -525,8 +546,13 @@ async function confirmLogout() {
             </div>
 
             <div class="col-12 col-lg-6">
-              <label class="form-label" for="editBirthDate">Dzimšanas datums</label>
-              <input id="editBirthDate" v-model="editForm.birthDate" type="date" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.birthDate }" />
+              <label class="form-label" for="editBirthDate">Dzimšanas datums <span class="text-secondary">(opcionāli)</span></label>
+              <BirthDatePicker
+                v-model="editForm.birthDate"
+                :invalid="!!editErrors.birthDate"
+                input-id="editBirthDate"
+                @update:error="editErrors.birthDate = $event"
+              />
               <div v-if="editErrors.birthDate" class="invalid-feedback d-block">{{ editErrors.birthDate }}</div>
             </div>
 
@@ -614,16 +640,24 @@ async function confirmLogout() {
     </div>
 
     <div v-if="isLogoutModalOpen" class="app-modal-backdrop" @click.self="closeLogoutModal">
-      <div class="app-modal app-modal--sm card border-primary-subtle">
+      <div class="app-modal app-modal--sm card border-primary-subtle logout-modal">
         <div class="card-body p-3 p-lg-4">
-          <h2 class="section-heading logout-modal-title mb-3">Iziet no konta?</h2>
+          <div class="logout-modal__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </div>
+          <h2 class="section-heading logout-modal-title mb-2">Iziet no konta?</h2>
           <p class="logout-modal-text mb-4">
-            Vai tiešām vēlies iziet no sava konta?
+            Pēc iziešanas tev būs jāautorizējas no jauna, lai turpinātu mācīties.
           </p>
 
-          <div class="d-flex justify-content-end gap-2">
+          <div class="logout-modal__actions">
             <button class="btn btn-outline-light" type="button" @click="closeLogoutModal">Atcelt</button>
-            <button class="btn btn-primary" type="button" :disabled="isLoggingOut" @click="confirmLogout">
+            <button class="btn btn-primary logout-modal__confirm" type="button" :disabled="isLoggingOut" @click="confirmLogout">
+              <span v-if="isLoggingOut" class="logout-modal__spinner" aria-hidden="true"></span>
               {{ isLoggingOut ? 'Notiek iziešana...' : 'Jā, iziet' }}
             </button>
           </div>

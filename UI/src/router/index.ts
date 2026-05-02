@@ -99,7 +99,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
-      path: '/users/:id',
+      path: '/users/:username',
       name: 'public-profile',
       component: UserProfileView,
     },

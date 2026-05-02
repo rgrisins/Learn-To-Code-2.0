@@ -14,6 +14,8 @@ public class PublicUserProfileResponse
 
     public string? Bio { get; set; }
 
+    public DateOnly? BirthDate { get; set; }
+
     public int Rating { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }

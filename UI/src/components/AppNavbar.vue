@@ -129,16 +129,24 @@ async function confirmLogout() {
   </nav>
 
   <div v-if="isLogoutModalOpen" class="app-modal-backdrop" @click.self="closeLogoutModal">
-    <div class="app-modal app-modal--sm card border-primary-subtle">
+    <div class="app-modal app-modal--sm card border-primary-subtle logout-modal">
       <div class="card-body p-3 p-lg-4">
-        <h2 class="section-heading logout-modal-title mb-3">Iziet no konta?</h2>
+        <div class="logout-modal__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+        <h2 class="section-heading logout-modal-title mb-2">Iziet no konta?</h2>
         <p class="logout-modal-text mb-4">
-        Vai tiešām vēlies iziet no sava konta?
+          Pēc iziešanas tev būs jāautorizējas no jauna, lai turpinātu mācīties.
         </p>
 
-        <div class="d-flex justify-content-end gap-2">
+        <div class="logout-modal__actions">
           <button class="btn btn-outline-light" type="button" @click="closeLogoutModal">Atcelt</button>
-          <button class="btn btn-primary" type="button" :disabled="isLoggingOut" @click="confirmLogout">
+          <button class="btn btn-primary logout-modal__confirm" type="button" :disabled="isLoggingOut" @click="confirmLogout">
+            <span v-if="isLoggingOut" class="logout-modal__spinner" aria-hidden="true"></span>
             {{ isLoggingOut ? 'Notiek iziešana...' : 'Jā, iziet' }}
           </button>
         </div>
