@@ -128,14 +128,6 @@ function diffLabel(d: string) {
   return 'Vidējs'
 }
 
-function attemptLabel(exercise: ExerciseListItem) {
-  if (exercise.attemptedUserCount === 0) {
-    return '0 mēģ.'
-  }
-
-  return `${exercise.attemptedUserCount} mēģ.`
-}
-
 function solvedCount(exercise: ExerciseListItem): number {
   if (!exercise.attemptedUserCount) return 0
   return Math.round((exercise.attemptedUserCount * (exercise.solvedAttemptPercent ?? 0)) / 100)
