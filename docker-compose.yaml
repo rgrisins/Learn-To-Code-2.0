@@ -6,7 +6,7 @@ services:
     container_name: learn_api
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "192.168.50.242:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -17,16 +17,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-
       Redis__Connection: redis:6379,password=${REDIS_PASSWORD}
-
       Minio__Endpoint: minio:9000
       Minio__AccessKey: ${MINIO_ROOT_USER}
       Minio__SecretKey: ${MINIO_ROOT_PASSWORD}
       Minio__UseSsl: "false"
-
       Theory__Storage__BucketName: learn-to-code
       Theory__Storage__Prefix: theory
       Theory__Storage__AutoCreateBucket: "true"
@@ -39,7 +35,7 @@ services:
     container_name: learn_ui
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "192.168.50.242:5173:80"
     depends_on:
       - api
 
@@ -47,6 +43,8 @@ services:
     image: postgres:17
     container_name: learn_postgres
     restart: unless-stopped
+    ports:
+      - "192.168.50.242:5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -74,6 +72,9 @@ services:
     image: minio/minio:latest
     container_name: learn_minio
     restart: unless-stopped
+    ports:
+      - "192.168.50.242:9000:9000"
+      - "192.168.50.242:9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
