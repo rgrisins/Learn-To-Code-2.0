@@ -32,6 +32,8 @@ services:
     build:
       context: ./UI
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: https://api.learn-to-code.lat
     container_name: learn_ui
     restart: unless-stopped
     ports:
