@@ -220,7 +220,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseForwardedHeaders();
-app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseCors("Frontend");
