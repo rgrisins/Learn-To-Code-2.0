@@ -62,21 +62,22 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Pedagoga lomas pieprasijuma iemesls ir par garu." });
         }
 
+        // Username un Email DB jau ir lowercase + trim, salīdzinām attiecīgi.
         var normalizedUsername = username.ToLowerInvariant();
 
         var existingUser = await _dbContext.Users
-            .FirstOrDefaultAsync(user => user.NormalizedEmail == email || user.NormalizedUsername == normalizedUsername, cancellationToken);
+            .FirstOrDefaultAsync(user => user.Email == email || user.Username == normalizedUsername, cancellationToken);
 
         if (existingUser is not null)
         {
             var errors = new Dictionary<string, string[]>();
 
-            if (existingUser.NormalizedUsername == normalizedUsername)
+            if (existingUser.Username == normalizedUsername)
             {
                 errors["username"] = ["Lietotājvārds jau ir aizņemts."];
             }
 
-            if (existingUser.NormalizedEmail == email)
+            if (existingUser.Email == email)
             {
                 errors["email"] = ["E-pasts jau ir aizņemts."];
             }
@@ -90,15 +91,12 @@ public class AuthController : ControllerBase
 
         var user = new User
         {
-            Username = username,
-            NormalizedUsername = normalizedUsername,
+            Username = normalizedUsername,
             FirstName = firstName,
             LastName = lastName,
             BirthDate = request.BirthDate,
-            FullName = $"{firstName} {lastName}".Trim(),
             Email = email,
-            NormalizedEmail = email,
-            EducationInstitution = string.IsNullOrWhiteSpace(request.EducationInstitution) ? null : request.EducationInstitution.Trim(),
+            Representation = string.IsNullOrWhiteSpace(request.Representation) ? null : request.Representation.Trim(),
             Rating = 1000,
             Role = requestedRole == UserRole.Pedagogs ? UserRole.Audzeknis : requestedRole,
             CreatedAtUtc = DateTime.UtcNow,
@@ -137,7 +135,7 @@ public class AuthController : ControllerBase
         var usernameOrEmail = request.Username.Trim().ToLowerInvariant();
 
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(existingUser => existingUser.NormalizedUsername == usernameOrEmail || existingUser.NormalizedEmail == usernameOrEmail, cancellationToken);
+            .FirstOrDefaultAsync(existingUser => existingUser.Username == usernameOrEmail || existingUser.Email == usernameOrEmail, cancellationToken);
 
         if (user is null)
         {
@@ -244,7 +242,8 @@ public class AuthController : ControllerBase
             FullName = user.FullName,
             Email = user.Email,
             Role = user.Role.ToString(),
-            EducationInstitution = user.EducationInstitution,
+            Representation = user.Representation,
+            Bio = user.Bio,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
         };

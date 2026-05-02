@@ -287,7 +287,8 @@ public sealed class RedisAuthSessionService : IAuthSessionService
             FullName = user.FullName,
             Email = user.Email,
             Role = user.Role.ToString(),
-            EducationInstitution = user.EducationInstitution,
+            Representation = user.Representation,
+            Bio = user.Bio,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
         };

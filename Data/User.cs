@@ -4,9 +4,11 @@ public class User
 {
     public int Id { get; set; }
 
+    /// <summary>
+    /// Lietotājvārds — jau normalizēts (lowercase, trim) pirms saglabāšanas DB.
+    /// Unikalitāte tiek nodrošināta ar LOWER() funkcijas indeksu.
+    /// </summary>
     public string? Username { get; set; }
-
-    public string? NormalizedUsername { get; set; }
 
     public string? FirstName { get; set; }
 
@@ -14,15 +16,28 @@ public class User
 
     public DateOnly? BirthDate { get; set; }
 
-    public string FullName { get; set; } = string.Empty;
+    /// <summary>
+    /// Atvasināts no FirstName + LastName — netiek glabāts datu bāzē.
+    /// </summary>
+    public string FullName => $"{FirstName} {LastName}".Trim();
 
+    /// <summary>
+    /// E-pasts — jau normalizēts (lowercase, trim) pirms saglabāšanas DB.
+    /// Unikalitāte tiek nodrošināta ar LOWER() funkcijas indeksu.
+    /// </summary>
     public string Email { get; set; } = string.Empty;
-
-    public string NormalizedEmail { get; set; } = string.Empty;
 
     public string PasswordHash { get; set; } = string.Empty;
 
-    public string? EducationInstitution { get; set; }
+    /// <summary>
+    /// Pārstāvniecība (skola, uzņēmums, organizācija). Iepriekšējais nosaukums: EducationInstitution.
+    /// </summary>
+    public string? Representation { get; set; }
+
+    /// <summary>
+    /// Lietotāja īss apraksts par sevi (max 500 rakstzīmes).
+    /// </summary>
+    public string? Bio { get; set; }
 
     public int Rating { get; set; } = 1000;
 

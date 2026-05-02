@@ -10,7 +10,8 @@ export interface AuthUser {
   fullName: string
   email: string
   role: string
-  educationInstitution?: string | null
+  representation?: string | null
+  bio?: string | null
   rating: number
   createdAtUtc: string
 }
@@ -31,7 +32,7 @@ export interface RegisterRequest {
   birthDate?: string | null
   email: string
   password: string
-  educationInstitution?: string | null
+  representation?: string | null
   role: string
   roleRequestReason?: string | null
 }
@@ -41,7 +42,10 @@ export interface UpdateProfileRequest {
   firstName: string
   lastName: string
   birthDate?: string | null
-  educationInstitution?: string | null
+  representation?: string | null
+  bio?: string | null
+  currentPassword?: string | null
+  newPassword?: string | null
 }
 
 export interface ProfileTheoryLanguageProgress {
@@ -70,7 +74,8 @@ export interface PublicUserProfile {
   username?: string | null
   fullName: string
   role: string
-  educationInstitution?: string | null
+  representation?: string | null
+  bio?: string | null
   rating: number
   createdAtUtc: string
   stats: ProfileStats

@@ -14,7 +14,7 @@ const form = reactive({
   email: '',
   password: '',
   confirmPassword: '',
-  educationInstitution: '',
+  representation: '',
   role: 'Audzeknis',
 })
 
@@ -38,7 +38,7 @@ const errors = reactive({
   password: '',
   confirmPassword: '',
   birthDate: '',
-  educationInstitution: '',
+  representation: '',
   role: '',
 })
 
@@ -165,7 +165,7 @@ function validateForm() {
   const email = form.email.trim()
   const password = form.password
   const confirmPassword = form.confirmPassword
-  const educationInstitution = form.educationInstitution.trim()
+  const representation = form.representation.trim()
   const birthDateResult = parseBirthDate(form.birthDate)
 
   if (!username) {
@@ -210,8 +210,8 @@ function validateForm() {
     errors.birthDate = birthDateResult.error
   }
 
-  if (educationInstitution && educationInstitution.length > 120) {
-    errors.educationInstitution = 'Izglītības iestādes nosaukumam jābūt īsākam par 120 simboliem.'
+  if (representation && representation.length > 120) {
+    errors.representation = 'Pārstāvniecības nosaukumam jābūt īsākam par 120 simboliem.'
   }
 
   if (!form.role) {
@@ -280,7 +280,7 @@ async function submitRegistration() {
       birthDate: birthDateResult.value,
       email: form.email.trim(),
       password: form.password,
-      educationInstitution: form.educationInstitution.trim() || null,
+      representation: form.representation.trim() || null,
       role: form.role,
       roleRequestReason: form.role === 'Pedagogs' ? roleRequestReason.value.trim() : null,
     })
@@ -403,9 +403,9 @@ async function submitRegistration() {
         </div>
 
         <div class="col-12 col-lg-6">
-          <label class="form-label" for="educationInstitution">Izglītības iestāde (opcionāli)</label>
-          <input id="educationInstitution" v-model="form.educationInstitution" type="text" class="form-control form-control-lg auth-input" placeholder="Piemēram, RVT" :class="{ 'is-invalid': !!errors.educationInstitution }" />
-          <div v-if="errors.educationInstitution" class="invalid-feedback d-block">{{ errors.educationInstitution }}</div>
+          <label class="form-label" for="representation">Pārstāvniecība (opcionāli)</label>
+          <input id="representation" v-model="form.representation" type="text" class="form-control form-control-lg auth-input" placeholder="Piemēram, RVT" :class="{ 'is-invalid': !!errors.representation }" />
+          <div v-if="errors.representation" class="invalid-feedback d-block">{{ errors.representation }}</div>
         </div>
 
         <div class="col-12">

@@ -10,6 +10,10 @@ public class AppDbContext : DbContext
 
     public DbSet<RoleRequest> RoleRequests { get; set; }
 
+    public DbSet<Representation> Representations { get; set; }
+
+    public DbSet<RepresentationMembership> RepresentationMemberships { get; set; }
+
     public DbSet<TheoryLanguage> TheoryLanguages { get; set; }
 
     public DbSet<TheoryTopic> TheoryTopics { get; set; }
@@ -46,20 +50,24 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.HasIndex(user => user.NormalizedUsername).IsUnique();
-            entity.HasIndex(user => user.NormalizedEmail).IsUnique();
+            // FullName ir computed property (FirstName + LastName) — netiek glabāts.
+            entity.Ignore(user => user.FullName);
+
             entity.Property(user => user.Username).HasMaxLength(100);
-            entity.Property(user => user.NormalizedUsername).HasMaxLength(100);
             entity.Property(user => user.FirstName).HasMaxLength(100);
             entity.Property(user => user.LastName).HasMaxLength(100);
             entity.Property(user => user.BirthDate).HasColumnType("date");
-            entity.Property(user => user.FullName).HasMaxLength(200).IsRequired();
             entity.Property(user => user.Email).HasMaxLength(320).IsRequired();
-            entity.Property(user => user.NormalizedEmail).HasMaxLength(320).IsRequired();
             entity.Property(user => user.PasswordHash).IsRequired();
-            entity.Property(user => user.EducationInstitution).HasMaxLength(200);
+            entity.Property(user => user.Representation).HasMaxLength(200);
+            entity.Property(user => user.Bio).HasMaxLength(500);
             entity.Property(user => user.Rating).HasDefaultValue(1000);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(32);
+
+            // Unikalitāte tiek panākta ar LOWER() funkcijas indeksu DB pusē
+            // (skat. migrate_users.sql). EF Core līmenī šeit nedrīkst būt
+            // HasIndex(...).IsUnique() uz Username/Email, jo tas mēģinātu izveidot
+            // parastu unikālo indeksu, kas nepārklās case-insensitive lookups.
         });
 
         modelBuilder.Entity<RoleRequest>(entity =>
@@ -72,6 +80,36 @@ public class AppDbContext : DbContext
             entity.HasOne(request => request.User)
                 .WithMany()
                 .HasForeignKey(request => request.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Representation>(entity =>
+        {
+            entity.HasIndex(representation => representation.NormalizedName).IsUnique();
+            entity.Property(representation => representation.Name).HasMaxLength(160).IsRequired();
+            entity.Property(representation => representation.NormalizedName).HasMaxLength(160).IsRequired();
+            entity.Property(representation => representation.Description).HasMaxLength(800);
+
+            entity.HasOne(representation => representation.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(representation => representation.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RepresentationMembership>(entity =>
+        {
+            entity.HasIndex(membership => new { membership.RepresentationId, membership.UserId }).IsUnique();
+            entity.HasIndex(membership => membership.UserId);
+            entity.Property(membership => membership.Role).HasConversion<string>().HasMaxLength(32);
+
+            entity.HasOne(membership => membership.Representation)
+                .WithMany(representation => representation.Memberships)
+                .HasForeignKey(membership => membership.RepresentationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(membership => membership.User)
+                .WithMany()
+                .HasForeignKey(membership => membership.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

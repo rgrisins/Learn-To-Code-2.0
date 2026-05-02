@@ -25,25 +25,14 @@ public class AdminUsersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UserProfileResponse>>> GetAll(CancellationToken cancellationToken)
     {
+        // FullName ir computed property (FirstName + LastName) — to nedrīkst lietot
+        // tieši IQueryable Select-ā, jo EF nezina, kā to translēt SQL. Ielādējam
+        // entītes un mapojam C# atmiņā.
         var users = await _dbContext.Users
             .OrderBy(user => user.Id)
-            .Select(user => new UserProfileResponse
-            {
-                Id = user.Id,
-                Username = user.Username ?? user.NormalizedUsername,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                BirthDate = user.BirthDate,
-                FullName = user.FullName,
-                Email = user.Email,
-                Role = user.Role.ToString(),
-                EducationInstitution = user.EducationInstitution,
-                Rating = user.Rating,
-                CreatedAtUtc = user.CreatedAtUtc,
-            })
             .ToListAsync(cancellationToken);
 
-        return Ok(users);
+        return Ok(users.Select(ToResponse).ToList());
     }
 
     [HttpPut("{id:int}")]
@@ -58,9 +47,9 @@ public class AdminUsersController : ControllerBase
         var username = request.Username.Trim();
         var firstName = request.FirstName.Trim();
         var lastName = request.LastName.Trim();
-        var educationInstitution = string.IsNullOrWhiteSpace(request.EducationInstitution)
+        var representation = string.IsNullOrWhiteSpace(request.Representation)
             ? null
-            : request.EducationInstitution.Trim();
+            : request.Representation.Trim();
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
         {
@@ -72,9 +61,9 @@ public class AdminUsersController : ControllerBase
             return BadRequest(new { message = "Lietotajvardam jabut 3-30 rakstzimes garam." });
         }
 
-        if (educationInstitution?.Length > 200)
+        if (representation?.Length > 200)
         {
-            return BadRequest(new { message = "Izglitibas iestades nosaukums ir par garu." });
+            return BadRequest(new { message = "Pārstāvniecības nosaukums ir par garu." });
         }
 
         if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role))
@@ -90,7 +79,7 @@ public class AdminUsersController : ControllerBase
 
         var normalizedUsername = username.ToLowerInvariant();
         var usernameTaken = await _dbContext.Users.AnyAsync(
-            existingUser => existingUser.Id != user.Id && existingUser.NormalizedUsername == normalizedUsername,
+            existingUser => existingUser.Id != user.Id && existingUser.Username == normalizedUsername,
             cancellationToken);
 
         if (usernameTaken)
@@ -105,13 +94,11 @@ public class AdminUsersController : ControllerBase
             });
         }
 
-        user.Username = username;
-        user.NormalizedUsername = normalizedUsername;
+        user.Username = normalizedUsername;
         user.FirstName = firstName;
         user.LastName = lastName;
         user.BirthDate = request.BirthDate;
-        user.FullName = $"{firstName} {lastName}".Trim();
-        user.EducationInstitution = educationInstitution;
+        user.Representation = representation;
         user.Role = role;
         user.Rating = Math.Max(0, request.Rating);
         user.UpdatedAtUtc = DateTime.UtcNow;
@@ -169,14 +156,15 @@ public class AdminUsersController : ControllerBase
         return new UserProfileResponse
         {
             Id = user.Id,
-            Username = user.Username ?? user.NormalizedUsername,
+            Username = user.Username,
             FirstName = user.FirstName,
             LastName = user.LastName,
             BirthDate = user.BirthDate,
             FullName = user.FullName,
             Email = user.Email,
             Role = user.Role.ToString(),
-            EducationInstitution = user.EducationInstitution,
+            Representation = user.Representation,
+            Bio = user.Bio,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
         };

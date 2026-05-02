@@ -9,47 +9,52 @@ import {
   updateProfile,
   type ProfileStats,
 } from '../services/auth'
-import { createRoleRequest, getMyRoleRequests } from '../services/roleRequests'
-import type { RoleRequest } from '../services/roleRequests'
+import { createRoleRequest, getMyRoleRequests, type RoleRequest } from '../services/roleRequests'
+import algoritmiLogo from '../assets/algoritmi.png'
+
+function getLanguageImageUrl(language: { languageId: string; title: string }): string {
+  if (language.title.trim().toLowerCase() === 'algoritmi') return algoritmiLogo
+  return `/theory/${language.languageId.toLowerCase()}.png`
+}
+
+function getExerciseLanguageImageUrl(languageCode?: string | null): string {
+  const code = (languageCode ?? '').trim().toLowerCase()
+  if (!code) return '/theory/python.png'
+  return `/theory/${code}.png`
+}
 
 const profileStatsVisibilityKey = 'learn-to-code:profile-stats-visible'
 
 const router = useRouter()
+const user = computed(() => authState.user)
+const displayName = computed(() => user.value?.username?.trim() || user.value?.fullName?.trim() || 'Mans profils')
+
 const isEditModalOpen = ref(false)
 const isLogoutModalOpen = ref(false)
+const isRoleRequestModalOpen = ref(false)
 const isSavingProfile = ref(false)
 const isLoggingOut = ref(false)
-const isRoleRequestModalOpen = ref(false)
 const isSendingRoleRequest = ref(false)
+const isLoadingProfileStats = ref(false)
+const showProfileStats = ref(localStorage.getItem(profileStatsVisibilityKey) !== 'false')
+
 const profileError = ref('')
 const profileStats = ref<ProfileStats | null>(null)
 const profileStatsError = ref('')
-const isLoadingProfileStats = ref(false)
-const showProfileStats = ref(localStorage.getItem(profileStatsVisibilityKey) !== 'false')
 const roleRequestError = ref('')
 const roleRequestReason = ref('')
 const roleRequests = ref<RoleRequest[]>([])
-const birthDatePickerOpen = ref(false)
-const calendarMonth = ref(new Date())
-const availableYears = computed(() => {
-  const currentYear = new Date().getFullYear()
-  return Array.from({ length: 101 }, (_, index) => currentYear - index)
-})
 
-const user = computed(() => authState.user)
-const latestPedagogRequest = computed(() =>
-  roleRequests.value.find((request) => request.requestedRole === 'Pedagogs') ?? null,
-)
-const pendingPedagogRequest = computed(() =>
-  roleRequests.value.find((request) => request.requestedRole === 'Pedagogs' && request.status === 'Pending') ?? null,
-)
-const canRequestPedagog = computed(() => user.value?.role === 'Audzeknis' && !pendingPedagogRequest.value)
 const editForm = reactive({
   username: '',
   firstName: '',
   lastName: '',
   birthDate: '',
-  educationInstitution: '',
+  representation: '',
+  bio: '',
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
 })
 
 const editErrors = reactive({
@@ -57,7 +62,30 @@ const editErrors = reactive({
   firstName: '',
   lastName: '',
   birthDate: '',
-  educationInstitution: '',
+  representation: '',
+  bio: '',
+  currentPassword: '',
+  newPassword: '',
+  confirmPassword: '',
+})
+
+const latestPedagogRequest = computed(() =>
+  roleRequests.value.find((request) => request.requestedRole === 'Pedagogs') ?? null,
+)
+const pendingPedagogRequest = computed(() =>
+  roleRequests.value.find((request) => request.requestedRole === 'Pedagogs' && request.status === 'Pending') ?? null,
+)
+const canRequestPedagog = computed(() => user.value?.role === 'Audzeknis' && !pendingPedagogRequest.value)
+
+const sortedTheoryLanguages = computed(() => {
+  const list = profileStats.value?.theoryLanguages ?? []
+  return [...list].sort((a, b) => {
+    const aIsAlgo = a.title.trim().toLowerCase() === 'algoritmi'
+    const bIsAlgo = b.title.trim().toLowerCase() === 'algoritmi'
+    if (aIsAlgo && !bIsAlgo) return -1
+    if (!aIsAlgo && bIsAlgo) return 1
+    return 0
+  })
 })
 
 onMounted(() => {
@@ -67,126 +95,21 @@ onMounted(() => {
   }
 })
 
-function formatCalendarDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 function formatBirthDateDisplay(isoDate?: string | null) {
   if (!isoDate) {
     return 'Nav norādīts'
   }
 
-  const [year, month, day] = isoDate.split('-')
-  if (!year || !month || !day) {
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) {
     return isoDate
   }
 
-  return `${day}/${month}/${year}`
-}
-
-function formatBirthDateInput(isoDate?: string | null) {
-  if (!isoDate) {
-    return ''
-  }
-
-  const [year, month, day] = isoDate.split('-')
-  if (!year || !month || !day) {
-    return ''
-  }
-
-  return `${day}/${month}/${year}`
-}
-
-function parseBirthDate(input: string) {
-  const trimmed = input.trim()
-
-  if (!trimmed) {
-    return { value: null, error: '' }
-  }
-
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
-  if (isoMatch) {
-    const year = Number(isoMatch[1])
-    const month = Number(isoMatch[2])
-    const day = Number(isoMatch[3])
-    const parsed = new Date(year, month - 1, day)
-
-    if (
-      parsed.getFullYear() !== year ||
-      parsed.getMonth() !== month - 1 ||
-      parsed.getDate() !== day
-    ) {
-      return { value: null, error: 'Datums nav derīgs.' }
-    }
-
-    return { value: formatCalendarDate(parsed), error: '' }
-  }
-
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed)
-  if (!match) {
-    return { value: null, error: 'Dzimšanas datumam jābūt formātā dd/mm/yyyy.' }
-  }
-
-  const day = Number(match[1])
-  const month = Number(match[2])
-  const year = Number(match[3])
-  const parsed = new Date(year, month - 1, day)
-
-  if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return { value: null, error: 'Dzimšanas datumam jābūt derīgam datumam.' }
-  }
-
-  return { value: formatCalendarDate(parsed), error: '' }
-}
-
-const calendarTitle = computed(() =>
-  new Intl.DateTimeFormat('lv-LV', { month: 'long', year: 'numeric' }).format(calendarMonth.value),
-)
-
-const calendarWeeks = computed(() => {
-  const firstDay = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth(), 1)
-  const startOffset = (firstDay.getDay() + 6) % 7
-  const daysInMonth = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + 1, 0).getDate()
-  const cells: Array<{ label: string; iso: string | null; isEmpty: boolean }> = []
-
-  for (let index = 0; index < startOffset; index += 1) {
-    cells.push({ label: '', iso: null, isEmpty: true })
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const date = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth(), day)
-    cells.push({
-      label: String(day),
-      iso: formatCalendarDate(date),
-      isEmpty: false,
-    })
-  }
-
-  return cells
-})
-
-function selectCalendarDate(isoDate: string) {
-  const [year, month, day] = isoDate.split('-').map(Number)
-  const parsed = new Date(year, month - 1, day)
-  editForm.birthDate = formatBirthDateInput(formatCalendarDate(parsed))
-  birthDatePickerOpen.value = false
-  editErrors.birthDate = ''
-}
-
-function moveCalendarMonth(offset: number) {
-  calendarMonth.value = new Date(calendarMonth.value.getFullYear(), calendarMonth.value.getMonth() + offset, 1)
-}
-
-function selectCalendarYear(event: Event) {
-  const target = event.target as HTMLSelectElement
-  calendarMonth.value = new Date(Number(target.value), calendarMonth.value.getMonth(), 1)
+  return new Intl.DateTimeFormat('lv-LV', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
 }
 
 function clearEditErrors() {
@@ -201,9 +124,7 @@ function validateEditForm() {
   const username = editForm.username.trim()
   const firstName = editForm.firstName.trim()
   const lastName = editForm.lastName.trim()
-  const birthDate = editForm.birthDate.trim()
-  const educationInstitution = editForm.educationInstitution.trim()
-  const birthDateResult = parseBirthDate(birthDate)
+  const representation = editForm.representation.trim()
 
   if (!username) {
     editErrors.username = 'Lietotājvārds ir obligāts.'
@@ -219,40 +140,32 @@ function validateEditForm() {
     editErrors.lastName = 'Uzvārds ir obligāts.'
   }
 
-  if (birthDate && birthDateResult.error) {
-    editErrors.birthDate = birthDateResult.error
+  if (representation && representation.length > 120) {
+    editErrors.representation = 'Pārstāvniecības nosaukums ir par garu.'
   }
 
-  if (educationInstitution && educationInstitution.length > 120) {
-    editErrors.educationInstitution = 'Izglītības iestādes nosaukums ir par garu.'
+  if (editForm.bio.length > 500) {
+    editErrors.bio = 'Apraksts nedrīkst pārsniegt 500 rakstzīmes.'
+  }
+
+  // Paroles maiņas validācija (tikai ja ir aizpildīts kāds no laukiem)
+  const wantsPasswordChange =
+    editForm.currentPassword || editForm.newPassword || editForm.confirmPassword
+  if (wantsPasswordChange) {
+    if (!editForm.currentPassword) {
+      editErrors.currentPassword = 'Norādi pašreizējo paroli.'
+    }
+    if (!editForm.newPassword) {
+      editErrors.newPassword = 'Ievadi jauno paroli.'
+    } else if (editForm.newPassword.length < 6) {
+      editErrors.newPassword = 'Jaunajai parolei jābūt vismaz 6 rakstzīmes garai.'
+    }
+    if (editForm.newPassword !== editForm.confirmPassword) {
+      editErrors.confirmPassword = 'Paroles nesakrīt.'
+    }
   }
 
   return Object.values(editErrors).every((value) => !value)
-}
-
-function openEditModal() {
-  profileError.value = ''
-  clearEditErrors()
-  birthDatePickerOpen.value = false
-
-  editForm.username = user.value?.username || ''
-  editForm.firstName = user.value?.firstName || ''
-  editForm.lastName = user.value?.lastName || ''
-  editForm.birthDate = formatBirthDateInput(user.value?.birthDate || null)
-  const birthDateResult = parseBirthDate(editForm.birthDate)
-  if (birthDateResult.value) {
-    const [year, month, day] = birthDateResult.value.split('-').map(Number)
-    calendarMonth.value = new Date(year, month - 1, day)
-  } else {
-    calendarMonth.value = new Date()
-  }
-  editForm.educationInstitution = user.value?.educationInstitution || ''
-  isEditModalOpen.value = true
-}
-
-function closeEditModal() {
-  isEditModalOpen.value = false
-  birthDatePickerOpen.value = false
 }
 
 async function loadRoleRequests() {
@@ -295,43 +208,26 @@ function languageLabel(languageCode?: string | null) {
   return languageCode
 }
 
-function openRoleRequestModal() {
-  roleRequestError.value = ''
-  roleRequestReason.value = ''
-  isRoleRequestModalOpen.value = true
+function openEditModal() {
+  const currentUser = user.value
+  if (!currentUser) return
+
+  profileError.value = ''
+  clearEditErrors()
+  editForm.username = currentUser.username || ''
+  editForm.firstName = currentUser.firstName || ''
+  editForm.lastName = currentUser.lastName || ''
+  editForm.birthDate = currentUser.birthDate || ''
+  editForm.representation = currentUser.representation || ''
+  editForm.bio = currentUser.bio || ''
+  editForm.currentPassword = ''
+  editForm.newPassword = ''
+  editForm.confirmPassword = ''
+  isEditModalOpen.value = true
 }
 
-function closeRoleRequestModal() {
-  isRoleRequestModalOpen.value = false
-}
-
-async function submitRoleRequest() {
-  const reason = roleRequestReason.value.trim()
-  if (reason.length < 10) {
-    roleRequestError.value = 'Uzraksti vismaz 10 rakstzimes.'
-    return
-  }
-
-  isSendingRoleRequest.value = true
-  roleRequestError.value = ''
-
-  try {
-    const request = await createRoleRequest('Pedagogs', reason)
-    roleRequests.value = [request, ...roleRequests.value]
-    closeRoleRequestModal()
-  } catch (error) {
-    roleRequestError.value = error instanceof Error ? error.message : 'Neizdevas nosutit pieprasijumu.'
-  } finally {
-    isSendingRoleRequest.value = false
-  }
-}
-
-function openLogoutModal() {
-  isLogoutModalOpen.value = true
-}
-
-function closeLogoutModal() {
-  isLogoutModalOpen.value = false
+function closeEditModal() {
+  isEditModalOpen.value = false
 }
 
 async function saveProfile() {
@@ -345,14 +241,16 @@ async function saveProfile() {
   isSavingProfile.value = true
 
   try {
-    const birthDateResult = parseBirthDate(editForm.birthDate)
-
+    const wantsPasswordChange = !!(editForm.currentPassword && editForm.newPassword)
     await updateProfile({
       username: editForm.username.trim(),
       firstName: editForm.firstName.trim(),
       lastName: editForm.lastName.trim(),
-      birthDate: birthDateResult.value,
-      educationInstitution: editForm.educationInstitution.trim() || null,
+      birthDate: editForm.birthDate || null,
+      representation: editForm.representation.trim() || null,
+      bio: editForm.bio.trim() || null,
+      currentPassword: wantsPasswordChange ? editForm.currentPassword : null,
+      newPassword: wantsPasswordChange ? editForm.newPassword : null,
     })
 
     closeEditModal()
@@ -371,7 +269,46 @@ async function saveProfile() {
   }
 }
 
-async function handleLogout() {
+function openRoleRequestModal() {
+  roleRequestError.value = ''
+  roleRequestReason.value = ''
+  isRoleRequestModalOpen.value = true
+}
+
+function closeRoleRequestModal() {
+  isRoleRequestModalOpen.value = false
+}
+
+async function submitRoleRequest() {
+  const reason = roleRequestReason.value.trim()
+  if (reason.length < 10) {
+    roleRequestError.value = 'Uzraksti vismaz 10 rakstzīmes.'
+    return
+  }
+
+  isSendingRoleRequest.value = true
+  roleRequestError.value = ''
+
+  try {
+    const request = await createRoleRequest('Pedagogs', reason)
+    roleRequests.value = [request, ...roleRequests.value]
+    closeRoleRequestModal()
+  } catch (error) {
+    roleRequestError.value = error instanceof Error ? error.message : 'Neizdevās nosūtīt pieprasījumu.'
+  } finally {
+    isSendingRoleRequest.value = false
+  }
+}
+
+function openLogoutModal() {
+  isLogoutModalOpen.value = true
+}
+
+function closeLogoutModal() {
+  isLogoutModalOpen.value = false
+}
+
+async function confirmLogout() {
   isLoggingOut.value = true
   try {
     await logout()
@@ -381,104 +318,112 @@ async function handleLogout() {
     closeLogoutModal()
   }
 }
-
-async function confirmLogout() {
-  await handleLogout()
-}
 </script>
 
 <template>
   <section class="content-panel card border-primary-subtle">
     <div class="card-body p-3 p-lg-4">
-      <h1 class="section-heading mb-3">Lietotāja profils</h1>
+      <div v-if="user" class="profile-hero mb-4">
+        <div class="profile-hero__identity">
+          <span class="profile-avatar">{{ displayName.slice(0, 1).toUpperCase() }}</span>
+          <div class="profile-hero__details">
+            <p class="section-kicker mb-2">Mans profils</p>
+            <h1 class="section-heading mb-1">{{ displayName }}</h1>
+            <p class="profile-public-lead mb-0">{{ user.fullName }} · {{ user.role }}</p>
+          </div>
+        </div>
 
-      <div v-if="user" class="row g-3 mb-4">
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Lietotājvārds</span>
-            <strong>{{ user.username || 'Nav norādīts' }}</strong>
-          </div>
+        <div class="profile-hero__bio">
+          <span class="profile-stat__label">Par sevi</span>
+          <p v-if="user.bio" class="profile-hero__bio-text">{{ user.bio }}</p>
+          <p v-else class="profile-hero__bio-placeholder">Vēl nav aprakstīts</p>
         </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Vārds</span>
-            <strong>{{ user.firstName || 'Nav norādīts' }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Uzvārds</span>
-            <strong>{{ user.lastName || 'Nav norādīts' }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Dzimšanas datums</span>
-            <strong>{{ formatBirthDateDisplay(user.birthDate) }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Loma</span>
-            <strong>{{ user.role }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">E-pasts</span>
-            <strong>{{ user.email }}</strong>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Reitings</span>
-            <strong>{{ user.rating }}</strong>
-          </div>
-        </div>
-        <div class="col-12">
-          <div class="profile-stat">
-            <span class="profile-stat__label">Izglītības iestāde</span>
-            <strong>{{ user.educationInstitution || 'Nav norādīta' }}</strong>
-          </div>
+
+        <div class="profile-hero__score">
+          <span>Reitings</span>
+          <strong>{{ user.rating }}</strong>
         </div>
       </div>
 
-      <div v-if="user" class="profile-statistics mb-4">
-        <div class="profile-statistics__header">
-          <h2>Statistika</h2>
+      <div v-if="user" class="profile-overview-grid mb-4">
+        <div class="profile-stat">
+          <span class="profile-stat__label">Vārds</span>
+          <strong>{{ user.firstName || 'Nav norādīts' }}</strong>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat__label">Uzvārds</span>
+          <strong>{{ user.lastName || 'Nav norādīts' }}</strong>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat__label">Dzimšanas datums</span>
+          <strong>{{ formatBirthDateDisplay(user.birthDate) }}</strong>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat__label">E-pasts</span>
+          <strong>{{ user.email }}</strong>
+        </div>
+        <div class="profile-stat profile-stat--wide">
+          <span class="profile-stat__label">Pārstāvniecība</span>
+          <strong>{{ user.representation || 'Nav norādīta' }}</strong>
+        </div>
+        <div class="profile-stat-actions">
           <button class="btn btn-outline-light btn-sm" type="button" @click="toggleProfileStats">
             {{ showProfileStats ? 'Paslēpt statistiku' : 'Rādīt statistiku' }}
           </button>
         </div>
+      </div>
 
-        <div v-if="showProfileStats" class="profile-progress-grid">
-          <section class="profile-progress-panel">
+      <hr v-if="user && showProfileStats" class="profile-section-divider" />
+
+      <div v-if="user" class="profile-statistics mb-4">
+        <div v-if="showProfileStats" class="profile-progress-grid profile-progress-grid--wide-first">
+          <section class="profile-progress-panel profile-progress-panel--theory">
             <div class="profile-progress-panel__header">
               <h2>Teorija</h2>
-              <span>{{ profileStats?.theoryLanguages.length ?? 0 }} valodas</span>
             </div>
 
             <div v-if="isLoadingProfileStats" class="profile-progress-empty">Ielādē statistiku...</div>
             <div v-else-if="profileStatsError" class="profile-progress-empty">{{ profileStatsError }}</div>
-            <div v-else-if="profileStats?.theoryLanguages.length" class="profile-progress-list">
+            <div v-else-if="sortedTheoryLanguages.length" class="profile-progress-list">
               <div
-                v-for="language in profileStats.theoryLanguages"
+                v-for="language in sortedTheoryLanguages"
                 :key="language.languageId"
                 class="profile-progress-item"
               >
                 <div class="profile-progress-item__top">
-                  <div>
+                  <img
+                    class="profile-progress-item__icon"
+                    :src="getLanguageImageUrl(language)"
+                    :alt="language.title"
+                  />
+                  <div class="profile-progress-item__title">
                     <strong>{{ language.title }}</strong>
-                    <span>{{ language.topicCount }} tēmas</span>
                   </div>
-                  <strong>{{ language.progressPercent }}%</strong>
+                  <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
                 </div>
                 <div class="profile-progress-track" aria-hidden="true">
                   <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
                 </div>
               </div>
             </div>
-            <div v-else class="profile-progress-empty">Vēl nav iesāktu programmēšanas valodu.</div>
+            <div v-else class="profile-progress-list">
+              <div class="profile-progress-item">
+                <div class="profile-progress-item__top">
+                  <img
+                    class="profile-progress-item__icon"
+                    src="/theory/python.png"
+                    alt="Python"
+                  />
+                  <div class="profile-progress-item__title">
+                    <strong>Python</strong>
+                  </div>
+                  <span class="theory-card__progress">0% apgūts</span>
+                </div>
+                <div class="profile-progress-track" aria-hidden="true">
+                  <span class="profile-progress-bar" style="width: 0%"></span>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="profile-progress-panel">
@@ -496,26 +441,35 @@ async function confirmLogout() {
                   :style="{ width: `${profileStats?.exerciseCompletionPercent ?? 0}%` }"
                 ></span>
               </div>
-              <div class="profile-task-stats">
-                <div>
-                  <span>Izpildīti</span>
-                  <strong>{{ profileStats?.exerciseSolved ?? 0 }} izpildīti</strong>
+
+              <div class="profile-task-stats profile-task-stats--grid">
+                <div class="profile-task-stat">
+                  <span class="profile-task-stat__label">Izpildīti</span>
+                  <strong class="profile-task-stat__value">{{ profileStats?.exerciseSolved ?? 0 }}</strong>
                 </div>
-                <div>
-                  <span>Mēģināti</span>
-                  <strong>{{ profileStats?.exerciseAttempted ?? 0 }}</strong>
+                <div class="profile-task-stat">
+                  <span class="profile-task-stat__label">Mēģināti</span>
+                  <strong class="profile-task-stat__value">{{ profileStats?.exerciseAttempted ?? 0 }}</strong>
                 </div>
-                <div>
-                  <span>Iesniegumi</span>
-                  <strong>{{ profileStats?.exerciseSubmissionCount ?? 0 }}</strong>
+                <div class="profile-task-stat">
+                  <span class="profile-task-stat__label">Iesniegumi</span>
+                  <strong class="profile-task-stat__value">{{ profileStats?.exerciseSubmissionCount ?? 0 }}</strong>
                 </div>
-                <div>
-                  <span>Pareizo iesniegumu %</span>
-                  <strong>{{ profileStats?.exerciseSuccessPercent ?? 0 }}%</strong>
+                <div class="profile-task-stat profile-task-stat--accent">
+                  <span class="profile-task-stat__label">Pareizi</span>
+                  <strong class="profile-task-stat__value">{{ profileStats?.exerciseSuccessPercent ?? 0 }}%</strong>
                 </div>
-                <div>
-                  <span>Izmantotākā valoda</span>
-                  <strong>{{ languageLabel(profileStats?.mostUsedExerciseLanguage) }}</strong>
+              </div>
+
+              <div v-if="profileStats?.mostUsedExerciseLanguage" class="profile-favourite-language">
+                <img
+                  class="profile-favourite-language__icon"
+                  :src="getExerciseLanguageImageUrl(profileStats.mostUsedExerciseLanguage)"
+                  :alt="languageLabel(profileStats.mostUsedExerciseLanguage)"
+                />
+                <div class="profile-favourite-language__text">
+                  <span class="profile-favourite-language__label">Visbiežāk lietotā valoda</span>
+                  <strong>{{ languageLabel(profileStats.mostUsedExerciseLanguage) }}</strong>
                 </div>
               </div>
             </template>
@@ -534,7 +488,7 @@ async function confirmLogout() {
           Rediģēt profilu
         </button>
         <button v-if="canRequestPedagog" class="btn btn-outline-light" type="button" @click="openRoleRequestModal">
-          Pieprasit pedagoga lomu
+          Pieprasīt pedagoga lomu
         </button>
         <button class="btn btn-primary" type="button" :disabled="isLoggingOut" @click="openLogoutModal">
           Iziet no konta
@@ -570,75 +524,53 @@ async function confirmLogout() {
               <div v-if="editErrors.lastName" class="invalid-feedback d-block">{{ editErrors.lastName }}</div>
             </div>
 
-            <div class="col-12 col-lg-6 position-relative">
+            <div class="col-12 col-lg-6">
               <label class="form-label" for="editBirthDate">Dzimšanas datums</label>
-              <div class="input-group birthdate-field">
-                <input
-                  id="editBirthDate"
-                  v-model="editForm.birthDate"
-                  type="text"
-                  inputmode="numeric"
-                  placeholder="dd/mm/yyyy"
-                  class="form-control form-control-lg auth-input"
-                  :class="{ 'is-invalid': !!editErrors.birthDate }"
-                  @focus="birthDatePickerOpen = true"
-                  @click="birthDatePickerOpen = true"
-                />
-                <button class="btn btn-outline-light" type="button" @click="birthDatePickerOpen = !birthDatePickerOpen">
-                  Kalendārs
-                </button>
-              </div>
+              <input id="editBirthDate" v-model="editForm.birthDate" type="date" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.birthDate }" />
               <div v-if="editErrors.birthDate" class="invalid-feedback d-block">{{ editErrors.birthDate }}</div>
-
-              <div v-if="birthDatePickerOpen" class="birthdate-calendar card border-primary-subtle mt-2">
-                <div class="card-body p-3">
-                  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                    <button class="btn btn-outline-light btn-sm" type="button" @click="moveCalendarMonth(-1)">‹</button>
-                    <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-center">
-                      <strong class="text-white text-capitalize">{{ calendarTitle }}</strong>
-                      <select class="form-select form-select-sm birthdate-year-select" :value="calendarMonth.getFullYear()" @change="selectCalendarYear">
-                        <option v-for="year in availableYears" :key="year" :value="year">{{ year }}</option>
-                      </select>
-                    </div>
-                    <button class="btn btn-outline-light btn-sm" type="button" @click="moveCalendarMonth(1)">›</button>
-                  </div>
-
-                  <div class="calendar-grid calendar-grid__head mb-2">
-                    <span>P</span>
-                    <span>O</span>
-                    <span>T</span>
-                    <span>C</span>
-                    <span>P</span>
-                    <span>S</span>
-                    <span>S</span>
-                  </div>
-
-                  <div class="calendar-grid">
-                    <span v-for="(cell, index) in calendarWeeks" :key="`${cell.iso || 'empty'}-${index}`" :class="['calendar-cell', { 'is-empty': cell.isEmpty }]">
-                      <button
-                        v-if="!cell.isEmpty && cell.iso"
-                        type="button"
-                        class="calendar-day"
-                        @click="selectCalendarDate(cell.iso)"
-                      >
-                        {{ cell.label }}
-                      </button>
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div class="col-12 col-lg-6">
-              <label class="form-label" for="editEducationInstitution">Izglītības iestāde</label>
-              <input id="editEducationInstitution" v-model="editForm.educationInstitution" type="text" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.educationInstitution }" />
-              <div v-if="editErrors.educationInstitution" class="invalid-feedback d-block">{{ editErrors.educationInstitution }}</div>
+              <label class="form-label" for="editRepresentation">Pārstāvniecība <span class="text-secondary">(opcionāli)</span></label>
+              <input id="editRepresentation" v-model="editForm.representation" type="text" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.representation }" />
+              <div v-if="editErrors.representation" class="invalid-feedback d-block">{{ editErrors.representation }}</div>
             </div>
 
-            <div v-if="canRequestPedagog" class="col-12">
-              <button class="btn btn-outline-light" type="button" @click="openRoleRequestModal">
-                Pieprasit pedagoga lomu
-              </button>
+            <div class="col-12">
+              <label class="form-label" for="editBio">Par sevi <span class="text-secondary">(opcionāli, līdz 500 rakstzīmēm)</span></label>
+              <textarea
+                id="editBio"
+                v-model="editForm.bio"
+                class="form-control auth-input"
+                :class="{ 'is-invalid': !!editErrors.bio }"
+                rows="3"
+                maxlength="500"
+                placeholder="Pastāsti par sevi..."
+              ></textarea>
+              <div v-if="editErrors.bio" class="invalid-feedback d-block">{{ editErrors.bio }}</div>
+            </div>
+
+            <div class="col-12">
+              <hr class="profile-edit-divider" />
+              <p class="text-secondary small mb-2">Mainīt paroli (atstāj tukšu, ja nemaini)</p>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label class="form-label" for="editCurrentPassword">Pašreizējā parole</label>
+              <input id="editCurrentPassword" v-model="editForm.currentPassword" type="password" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.currentPassword }" autocomplete="current-password" />
+              <div v-if="editErrors.currentPassword" class="invalid-feedback d-block">{{ editErrors.currentPassword }}</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label class="form-label" for="editNewPassword">Jaunā parole</label>
+              <input id="editNewPassword" v-model="editForm.newPassword" type="password" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.newPassword }" autocomplete="new-password" />
+              <div v-if="editErrors.newPassword" class="invalid-feedback d-block">{{ editErrors.newPassword }}</div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+              <label class="form-label" for="editConfirmPassword">Apstipriniet jauno paroli</label>
+              <input id="editConfirmPassword" v-model="editForm.confirmPassword" type="password" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.confirmPassword }" autocomplete="new-password" />
+              <div v-if="editErrors.confirmPassword" class="invalid-feedback d-block">{{ editErrors.confirmPassword }}</div>
             </div>
 
             <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
@@ -667,14 +599,14 @@ async function confirmLogout() {
             class="form-control auth-input"
             maxlength="1000"
             rows="5"
-            placeholder="Apraksti, kapec tev vajadziga pedagoga loma..."
+            placeholder="Apraksti, kāpēc tev vajadzīga pedagoga loma..."
           ></textarea>
           <div v-if="roleRequestError" class="invalid-feedback d-block">{{ roleRequestError }}</div>
 
           <div class="d-flex justify-content-end gap-2 mt-4">
             <button class="btn btn-outline-light" type="button" @click="closeRoleRequestModal">Atcelt</button>
             <button class="btn btn-primary" type="button" :disabled="isSendingRoleRequest" @click="submitRoleRequest">
-              {{ isSendingRoleRequest ? 'Sutu...' : 'Nosutit' }}
+              {{ isSendingRoleRequest ? 'Sūta...' : 'Nosūtīt' }}
             </button>
           </div>
         </div>
@@ -684,17 +616,17 @@ async function confirmLogout() {
     <div v-if="isLogoutModalOpen" class="app-modal-backdrop" @click.self="closeLogoutModal">
       <div class="app-modal app-modal--sm card border-primary-subtle">
         <div class="card-body p-3 p-lg-4">
-            <h2 class="section-heading logout-modal-title mb-3">Iziet no konta?</h2>
-            <p class="logout-modal-text mb-4">
-                Vai tiešām vēlies iziet no sava konta?
-            </p>
+          <h2 class="section-heading logout-modal-title mb-3">Iziet no konta?</h2>
+          <p class="logout-modal-text mb-4">
+            Vai tiešām vēlies iziet no sava konta?
+          </p>
 
-            <div class="d-flex justify-content-end gap-2">
-                <button class="btn btn-outline-light" type="button" @click="closeLogoutModal">Atcelt</button>
-                <button class="btn btn-primary" type="button" :disabled="isLoggingOut" @click="confirmLogout">
-                {{ isLoggingOut ? 'Notiek iziešana...' : 'Jā, iziet' }}
-                </button>
-            </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-light" type="button" @click="closeLogoutModal">Atcelt</button>
+            <button class="btn btn-primary" type="button" :disabled="isLoggingOut" @click="confirmLogout">
+              {{ isLoggingOut ? 'Notiek iziešana...' : 'Jā, iziet' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>

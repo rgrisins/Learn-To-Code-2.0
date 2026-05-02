@@ -1,46 +1,46 @@
 # LearnToCode
 
-## Local setup
+## Local test setup
 
-This repo now uses Redis in Docker Desktop and PostgreSQL installed locally on your machine.
+The app can be run locally while using the server PostgreSQL, Redis and MinIO services. The API uses `API/appsettings.Development.json` when `ASPNETCORE_ENVIRONMENT=Development`.
 
-### 1. Start Redis in Docker Desktop
+### API
 
-Run this from the repository root:
-
-```bash
-docker compose up -d
-```
-
-Redis will be available on `localhost:6379`.
-
-### 2. Start PostgreSQL locally
-
-Create a local PostgreSQL database named `learn_to_code`.
-
-The API expects this connection string by default in development:
-
-`Host=localhost;Port=5432;Database=learn_to_code;Username=postgres;Password=postgres`
-
-If your local PostgreSQL uses different credentials, set `ConnectionStrings__DefaultConnection` in your run profile or update `API/appsettings.Development.json`.
-
-### 3. Run the app
-
-Start the API:
+Run from the repository root:
 
 ```bash
-dotnet run --project API/LearnToCode.csproj
+dotnet run --project API/LearnToCode.csproj --launch-profile https
 ```
 
-The API listens on `https://localhost:8080`.
+The API listens on `https://localhost:8080` and connects to:
 
-Start the UI:
+- PostgreSQL: `192.168.50.242:5432`
+- Redis: `192.168.50.242:6379`
+- MinIO: `192.168.50.242:9000`
+
+### UI
+
+Run in another terminal:
 
 ```bash
 cd UI
 npm start
 ```
 
-The UI listens on `https://localhost:5173`.
+The UI listens on `https://localhost:5173` and proxies `/api` to `https://localhost:8080`.
 
-The local UI and API now run over HTTPS. If the browser warns about the local certificate, trust the ASP.NET Core development certificate once on your machine.
+## Server deployment
+
+On the server, use Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+The API container runs with `ASPNETCORE_ENVIRONMENT=Production`. `docker-compose.yaml` overrides the default `appsettings.json` values with container network names and `.env` secrets:
+
+- PostgreSQL: `postgres:5432`
+- Redis: `redis:6379`
+- MinIO: `minio:9000`
+
+So local testing and server deployment can use the same code without editing config files before deploy.

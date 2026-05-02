@@ -15,6 +15,7 @@ import AdminView from '../views/AdminView.vue'
 import ExercisesView from '../views/ExercisesView.vue'
 import ExerciseDetailView from '../views/ExerciseDetailView.vue'
 import SubmissionsView from '../views/SubmissionsView.vue'
+import RepresentationsView from '../views/RepresentationsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -78,6 +79,12 @@ const router = createRouter({
       path: '/submissions',
       name: 'submissions',
       component: SubmissionsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/representations',
+      name: 'representations',
+      component: RepresentationsView,
       meta: { requiresAuth: true },
     },
     {

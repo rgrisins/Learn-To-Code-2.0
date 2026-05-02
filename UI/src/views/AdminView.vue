@@ -32,7 +32,7 @@ const roles = ['Audzeknis', 'Pedagogs', 'Administrators']
 
 type AdminSection = 'users' | 'editRequests' | 'exerciseRequests' | 'roleRequests'
 type SortDirection = 'asc' | 'desc'
-type UserSortKey = 'user' | 'role' | 'educationInstitution' | 'rating' | 'createdAt'
+type UserSortKey = 'user' | 'role' | 'representation' | 'rating' | 'createdAt'
 type EditRequestSortKey = 'user' | 'type' | 'target' | 'status' | 'createdAt'
 type RoleRequestSortKey = 'user' | 'requestedRole' | 'reason' | 'status' | 'createdAt'
 
@@ -156,7 +156,7 @@ const editForm = reactive({
   firstName: '',
   lastName: '',
   birthDate: '',
-  educationInstitution: '',
+  representation: '',
   role: 'Audzeknis',
   rating: 1000,
 })
@@ -176,7 +176,7 @@ const filteredUsers = computed(() => {
     const matchesRole = !roleFilter.value || user.role === roleFilter.value
     const matchesSearch =
       !query ||
-      [getUsername(user), user.fullName, user.email, user.educationInstitution]
+      [getUsername(user), user.fullName, user.email, user.representation]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query))
 
@@ -370,7 +370,7 @@ function openEditModal(user: AuthUser) {
   editForm.firstName = user.firstName || ''
   editForm.lastName = user.lastName || ''
   editForm.birthDate = formatBirthDateInput(user.birthDate || null)
-  editForm.educationInstitution = user.educationInstitution || ''
+  editForm.representation = user.representation || ''
   editForm.role = user.role
   editForm.rating = user.rating
 
@@ -455,7 +455,7 @@ async function saveUser() {
       firstName: editForm.firstName.trim(),
       lastName: editForm.lastName.trim(),
       birthDate: birthDateResult.value,
-      educationInstitution: editForm.educationInstitution.trim() || null,
+      representation: editForm.representation.trim() || null,
       role: editForm.role,
       rating: editForm.rating,
     })
@@ -819,8 +819,8 @@ function getUserSortValue(user: AuthUser, key: UserSortKey) {
       return `${getDisplayName(user)} ${user.email} ${getUsername(user)}`
     case 'role':
       return user.role
-    case 'educationInstitution':
-      return user.educationInstitution ?? ''
+    case 'representation':
+      return user.representation ?? ''
     case 'rating':
       return user.rating
     case 'createdAt':
@@ -979,7 +979,7 @@ function isCurrentUser(user: AuthUser) {
             v-model="searchTerm"
             class="form-control auth-input"
             type="search"
-            placeholder="Meklēt pēc vārda, e-pasta vai iestādes"
+            placeholder="Meklēt pēc vārda, e-pasta vai pārstāvniecības"
           />
           <select v-model="roleFilter" class="form-select auth-input">
             <option value="">Visas lomas</option>
@@ -1002,8 +1002,8 @@ function isCurrentUser(user: AuthUser) {
                   </button>
                 </th>
                 <th scope="col">
-                  <button class="admin-sort-button" type="button" :aria-label="sortAriaLabel(userSort, 'educationInstitution', 'Iestāde')" @click="toggleSort(userSort, 'educationInstitution')">
-                    Iestāde <span>{{ sortIndicator(userSort, 'educationInstitution') }}</span>
+                  <button class="admin-sort-button" type="button" :aria-label="sortAriaLabel(userSort, 'representation', 'Pārstāvniecība')" @click="toggleSort(userSort, 'representation')">
+                    Pārstāvniecība <span>{{ sortIndicator(userSort, 'representation') }}</span>
                   </button>
                 </th>
                 <th scope="col">
@@ -1041,7 +1041,7 @@ function isCurrentUser(user: AuthUser) {
                       {{ user.role }}
                     </span>
                   </td>
-                  <td>{{ user.educationInstitution || 'Nav norādīta' }}</td>
+                  <td>{{ user.representation || 'Nav norādīta' }}</td>
                   <td>{{ user.rating }}</td>
                   <td>{{ formatDateTime(user.createdAtUtc) }}</td>
                   <td>
@@ -1526,10 +1526,10 @@ function isCurrentUser(user: AuthUser) {
               <div v-if="editErrors.rating" class="invalid-feedback d-block">{{ editErrors.rating }}</div>
             </div>
             <div class="col-12">
-              <label class="form-label" for="adminEditEducation">Izglītības iestāde</label>
+              <label class="form-label" for="adminEditEducation">Pārstāvniecība</label>
               <input
                 id="adminEditEducation"
-                v-model="editForm.educationInstitution"
+                v-model="editForm.representation"
                 class="form-control form-control-lg auth-input"
                 type="text"
               />

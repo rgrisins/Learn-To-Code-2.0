@@ -3,6 +3,7 @@ using LearnToCode.API.Contracts.Auth;
 using LearnToCode.API.Services;
 using LearnToCode.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,15 +17,18 @@ public class ProfileController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly IAuthSessionService _authSessionService;
     private readonly TheoryProgressService _theoryProgressService;
+    private readonly IPasswordHasher<User> _passwordHasher;
 
     public ProfileController(
         AppDbContext dbContext,
         IAuthSessionService authSessionService,
-        TheoryProgressService theoryProgressService)
+        TheoryProgressService theoryProgressService,
+        IPasswordHasher<User> passwordHasher)
     {
         _dbContext = dbContext;
         _authSessionService = authSessionService;
         _theoryProgressService = theoryProgressService;
+        _passwordHasher = passwordHasher;
     }
 
     [HttpGet("me")]
@@ -63,16 +67,45 @@ public class ProfileController : ControllerBase
             return Unauthorized();
         }
 
-        user.Username = request.Username.Trim();
-        user.NormalizedUsername = request.Username.Trim().ToLowerInvariant();
+        // Username DB jau ir lowercase + trim (FullName ir computed no FirstName + LastName)
+        user.Username = request.Username.Trim().ToLowerInvariant();
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.BirthDate = request.BirthDate;
-        user.FullName = $"{user.FirstName} {user.LastName}".Trim();
-        user.EducationInstitution = string.IsNullOrWhiteSpace(request.EducationInstitution)
+        user.Representation = string.IsNullOrWhiteSpace(request.Representation)
             ? null
-            : request.EducationInstitution.Trim();
+            : request.Representation.Trim();
+        user.Bio = string.IsNullOrWhiteSpace(request.Bio)
+            ? null
+            : request.Bio.Trim();
         user.UpdatedAtUtc = DateTime.UtcNow;
+
+        if (user.Bio is not null && user.Bio.Length > 500)
+        {
+            return BadRequest(new { message = "Apraksts nedrīkst pārsniegt 500 rakstzīmes." });
+        }
+
+        // Paroles maiņa, ja iesniegti abi (current + new) lauki
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+            {
+                return BadRequest(new { message = "Norādi pašreizējo paroli." });
+            }
+
+            var verification = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword);
+            if (verification == PasswordVerificationResult.Failed)
+            {
+                return BadRequest(new { message = "Pašreizējā parole ir nepareiza." });
+            }
+
+            if (request.NewPassword.Length < 6)
+            {
+                return BadRequest(new { message = "Jaunajai parolei jābūt vismaz 6 rakstzīmes garai." });
+            }
+
+            user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword);
+        }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -115,10 +148,11 @@ public class ProfileController : ControllerBase
         return Ok(new PublicUserProfileResponse
         {
             Id = user.Id,
-            Username = user.Username ?? user.NormalizedUsername,
+            Username = user.Username,
             FullName = user.FullName,
             Role = user.Role.ToString(),
-            EducationInstitution = user.EducationInstitution,
+            Representation = user.Representation,
+            Bio = user.Bio,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
             Stats = await BuildStatsAsync(user.Id, cancellationToken),
@@ -147,8 +181,18 @@ public class ProfileController : ControllerBase
                 TopicCount = language.TopicCount,
                 ProgressPercent = languageProgress.GetValueOrDefault(language.Title),
             })
-            .Where(language => language.ProgressPercent > 0)
             .ToList();
+
+        if (theoryLanguages.Count == 0)
+        {
+            theoryLanguages.Add(new ProfileTheoryLanguageProgressResponse
+            {
+                LanguageId = "Python",
+                Title = "Python",
+                TopicCount = 0,
+                ProgressPercent = 0,
+            });
+        }
 
         var exerciseTotal = await _dbContext.Exercises
             .AsNoTracking()
@@ -241,7 +285,8 @@ public class ProfileController : ControllerBase
             FullName = user.FullName,
             Email = user.Email,
             Role = user.Role.ToString(),
-            EducationInstitution = user.EducationInstitution,
+            Representation = user.Representation,
+            Bio = user.Bio,
             Rating = user.Rating,
             CreatedAtUtc = user.CreatedAtUtc,
         };

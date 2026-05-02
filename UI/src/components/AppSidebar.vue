@@ -17,7 +17,10 @@ const sections = computed(() => [
   ...(isAuthenticated.value
     ? [{ label: 'Iesniegumi', to: '/submissions', description: 'Tavi uzdevumu iesniegumi' }]
     : []),
-  { label: 'Reitings', to: '/ratings', description: 'Lietotāju tops pēc reitinga' },
+  ...(isAuthenticated.value
+    ? [{ label: 'Pārstāvniecības', to: '/representations', description: 'Grupas, dalība un kopējā statistika' }]
+    : []),
+  { label: 'Reitings', to: '/ratings', description: 'Lietotāju un pārstāvniecību tops' },
 ])
 </script>
 

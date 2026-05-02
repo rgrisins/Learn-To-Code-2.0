@@ -13,10 +13,12 @@ namespace LearnToCode.API.Controllers;
 public class TheoryQuizzesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly TheoryProgressService _progressService;
 
-    public TheoryQuizzesController(AppDbContext db)
+    public TheoryQuizzesController(AppDbContext db, TheoryProgressService progressService)
     {
         _db = db;
+        _progressService = progressService;
     }
 
     [HttpGet]
@@ -189,6 +191,10 @@ public class TheoryQuizzesController : ControllerBase
         }
 
         await _db.SaveChangesAsync(ct);
+
+        // Atspoguļo kvīza atbildi tēmas/valodas progresā — invalidē kešu, lai
+        // nākamais GetTopic/GetLanguage izsaukums pārrēķina procentus.
+        await _progressService.InvalidateUserProgressCacheAsync(userId.Value, ct);
 
         return Ok(new TheoryQuizAnswerResultDto(
             question.Id,

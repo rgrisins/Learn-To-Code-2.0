@@ -51,9 +51,10 @@ public class TheoryProgressService
 
         var snapshots = await GetTopicSnapshotsAsync(normalizedLanguageCode, cancellationToken);
         var readCounts = await GetReadPageCountsAsync(userId, snapshots, cancellationToken);
+        var quizCorrectCounts = await GetQuizCorrectCountsAsync(userId, snapshots, cancellationToken);
         var progress = snapshots.ToDictionary(
             snapshot => snapshot.TopicSlug,
-            snapshot => CalculatePercent(readCounts.GetValueOrDefault(snapshot.ContentId), snapshot.PageCount),
+            snapshot => CalculateTopicPercent(snapshot, readCounts, quizCorrectCounts),
             StringComparer.OrdinalIgnoreCase);
 
         await TryWriteCacheAsync(await BuildUserCacheKeyAsync(userId, $"language:{normalizedLanguageCode}:topics", cancellationToken), progress, cancellationToken);
@@ -200,6 +201,7 @@ public class TheoryProgressService
         CancellationToken cancellationToken)
     {
         var readCounts = await GetReadPageCountsAsync(userId, snapshots, cancellationToken);
+        var quizCorrectCounts = await GetQuizCorrectCountsAsync(userId, snapshots, cancellationToken);
 
         return snapshots
             .GroupBy(snapshot => snapshot.LanguageCode, StringComparer.OrdinalIgnoreCase)
@@ -207,9 +209,19 @@ public class TheoryProgressService
                 group => group.Key,
                 group =>
                 {
-                    var totalPages = group.Sum(snapshot => snapshot.PageCount);
-                    var readPages = group.Sum(snapshot => Math.Min(readCounts.GetValueOrDefault(snapshot.ContentId), snapshot.PageCount));
-                    return CalculatePercent(readPages, totalPages);
+                    var total = 0;
+                    var done = 0;
+                    foreach (var snapshot in group)
+                    {
+                        total += snapshot.PageCount + snapshot.QuizQuestionCount;
+                        done += Math.Min(readCounts.GetValueOrDefault(snapshot.ContentId), snapshot.PageCount);
+                        if (snapshot.QuizId is int quizId)
+                        {
+                            done += Math.Min(quizCorrectCounts.GetValueOrDefault(quizId), snapshot.QuizQuestionCount);
+                        }
+                    }
+
+                    return CalculatePercent(done, total);
                 },
                 StringComparer.OrdinalIgnoreCase);
     }
@@ -231,6 +243,8 @@ public class TheoryProgressService
                 ContentId = topic.Content!.Id,
                 topic.Content.Version,
                 topic.Content.PageCount,
+                QuizId = (int?)(topic.Quiz != null ? topic.Quiz.Id : (int?)null),
+                QuizQuestionCount = topic.Quiz != null ? topic.Quiz.Questions.Count : 0,
             })
             .ToListAsync(cancellationToken);
 
@@ -240,7 +254,9 @@ public class TheoryProgressService
                 TheoryTopicKey.FromTitle(topic.TopicTitle),
                 topic.ContentId,
                 topic.Version,
-                topic.PageCount))
+                topic.PageCount,
+                topic.QuizId,
+                topic.QuizQuestionCount))
             .ToList();
     }
 
@@ -265,6 +281,8 @@ public class TheoryProgressService
                 ContentId = topic.Content!.Id,
                 topic.Content.Version,
                 topic.Content.PageCount,
+                QuizId = (int?)(topic.Quiz != null ? topic.Quiz.Id : (int?)null),
+                QuizQuestionCount = topic.Quiz != null ? topic.Quiz.Questions.Count : 0,
             })
             .ToListAsync(cancellationToken);
 
@@ -274,7 +292,9 @@ public class TheoryProgressService
                 TheoryTopicKey.FromTitle(topic.TopicTitle),
                 topic.ContentId,
                 topic.Version,
-                topic.PageCount))
+                topic.PageCount,
+                topic.QuizId,
+                topic.QuizQuestionCount))
             .FirstOrDefault(topic => string.Equals(topic.TopicSlug, normalizedTopicId, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -301,6 +321,36 @@ public class TheoryProgressService
             .Where(row => versions.GetValueOrDefault(row.TheoryContentId) == row.ContentVersion)
             .GroupBy(row => row.TheoryContentId)
             .ToDictionary(group => group.Key, group => group.Select(row => row.PageIndex).Distinct().Count());
+    }
+
+    private async Task<Dictionary<int, int>> GetQuizCorrectCountsAsync(
+        int userId,
+        IReadOnlyList<TopicProgressSnapshot> snapshots,
+        CancellationToken cancellationToken)
+    {
+        var quizIds = snapshots
+            .Where(snapshot => snapshot.QuizId.HasValue)
+            .Select(snapshot => snapshot.QuizId!.Value)
+            .ToHashSet();
+
+        if (quizIds.Count == 0)
+        {
+            return [];
+        }
+
+        var rows = await _dbContext.TheoryQuizQuestionAnswers
+            .AsNoTracking()
+            .Where(answer =>
+                answer.UserId == userId &&
+                answer.IsCorrect &&
+                answer.Question != null &&
+                quizIds.Contains(answer.Question.QuizId))
+            .Select(answer => new { QuizId = answer.Question!.QuizId, answer.QuestionId })
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.QuizId)
+            .ToDictionary(group => group.Key, group => group.Select(row => row.QuestionId).Distinct().Count());
     }
 
     private async Task<T?> TryReadCacheAsync<T>(string key, CancellationToken cancellationToken)
@@ -382,6 +432,23 @@ public class TheoryProgressService
     private static int CalculatePercent(int readPages, int totalPages) =>
         totalPages <= 0 ? 0 : (int)Math.Round(readPages * 100.0 / totalPages);
 
+    private static int CalculateTopicPercent(
+        TopicProgressSnapshot snapshot,
+        IReadOnlyDictionary<int, int> readCounts,
+        IReadOnlyDictionary<int, int> quizCorrectCounts)
+    {
+        var total = snapshot.PageCount + snapshot.QuizQuestionCount;
+        if (total <= 0) return 0;
+
+        var done = Math.Min(readCounts.GetValueOrDefault(snapshot.ContentId), snapshot.PageCount);
+        if (snapshot.QuizId is int quizId)
+        {
+            done += Math.Min(quizCorrectCounts.GetValueOrDefault(quizId), snapshot.QuizQuestionCount);
+        }
+
+        return CalculatePercent(done, total);
+    }
+
     private static string GetGlobalVersionKey() => $"{CachePrefix}global-version";
 
     private static string GetUserVersionKey(int userId) => $"{CachePrefix}user-version:{userId}";
@@ -391,5 +458,7 @@ public class TheoryProgressService
         string TopicSlug,
         int ContentId,
         int ContentVersion,
-        int PageCount);
+        int PageCount,
+        int? QuizId,
+        int QuizQuestionCount);
 }

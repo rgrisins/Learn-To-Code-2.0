@@ -252,7 +252,7 @@ const samplePairs = computed<SamplePair[]>(() => {
 <template>
   <div>
     <div class="mb-3">
-      <RouterLink to="/exercises" class="ex-back-link">← Uzdevumi</RouterLink>
+      <RouterLink to="/exercises" class="app-back-link">← Uzdevumi</RouterLink>
     </div>
 
     <div v-if="loading" class="content-panel card border-primary-subtle">

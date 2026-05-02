@@ -938,6 +938,46 @@ a {
   box-shadow: 0 0 0 0.18rem rgba(37, 99, 235, 0.18);
 }
 
+/* ─── Number inputs (sitewide) ──────────────────────────────────────────────
+   Tumšai tēmai pielāgoti, vienmēr redzami spinneri ar lielāku
+   klikšķa zonu, lai būtu vienots izskats visā mājaslapā. */
+
+input[type="number"] {
+  /* Pārliecinās, ka pārlūks renderē spinnerus tumšā tēmā */
+  color-scheme: dark;
+  padding-right: 0.45rem;
+}
+
+/* Chrome / Edge / Safari — vienmēr rāda spinnerus, palielina klikšķa zonu */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button;
+  appearance: inner-spin-button;
+  opacity: 1;
+  width: 1.4rem;
+  height: 1.85rem;
+  margin: 0 0 0 0.4rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+input[type="number"]::-webkit-inner-spin-button:hover,
+input[type="number"]::-webkit-outer-spin-button:hover {
+  opacity: 0.92;
+}
+
+input[type="number"]::-webkit-inner-spin-button:active,
+input[type="number"]::-webkit-outer-spin-button:active {
+  transform: scale(0.96);
+}
+
+/* Firefox saglabā spinneru vietas */
+@-moz-document url-prefix() {
+  input[type="number"] {
+    -moz-appearance: number-input;
+  }
+}
+
 .profile-stat {
   display: grid;
   gap: 0.35rem;
@@ -946,6 +986,140 @@ a {
   background: rgba(15, 23, 42, 0.78);
   border: 1px solid rgba(96, 165, 250, 0.22);
   color: var(--title);
+}
+
+.profile-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 26, 0.52);
+}
+
+.profile-hero__identity {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-hero__details {
+  min-width: 0;
+}
+
+/* Par sevi (Bio) — vidējā kolonna profile-hero blokā */
+.profile-hero__bio {
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.profile-hero__bio-text {
+  margin: 0;
+  color: var(--title);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.profile-hero__bio-placeholder {
+  margin: 0;
+  color: rgba(148, 163, 184, 0.6);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .profile-hero {
+    flex-wrap: wrap;
+  }
+
+  .profile-hero__bio {
+    flex-basis: 100%;
+    order: 3;
+  }
+}
+
+.profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  flex: 0 0 4rem;
+  border: 1px solid rgba(125, 211, 252, 0.34);
+  border-radius: var(--radius-lg);
+  background: rgba(14, 116, 144, 0.22);
+  color: #e0f2fe;
+  font-size: 1.65rem;
+  font-weight: 900;
+}
+
+.profile-hero__score {
+  display: grid;
+  min-width: 8rem;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(20, 184, 166, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(20, 83, 45, 0.16);
+  text-align: right;
+}
+
+.profile-hero__score span {
+  color: rgba(226, 232, 240, 0.68);
+  font-size: var(--font-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.profile-hero__score strong {
+  color: #bbf7d0;
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.profile-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.profile-stat--wide {
+  grid-column: span 3;
+}
+
+.profile-stat-actions {
+  grid-column: span 1;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+/* Atdalošā līnija starp profila datiem un statistiku */
+.profile-section-divider {
+  border: none;
+  border-top: 1px solid rgba(96, 165, 250, 0.2);
+  margin: 0.6rem 0 1.1rem;
+  opacity: 1;
+}
+
+.profile-stat-actions .btn {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 1rem;
+  white-space: nowrap;
 }
 
 .profile-stat__label {
@@ -1006,6 +1180,10 @@ a {
   gap: 1rem;
 }
 
+.profile-progress-grid--wide-first {
+  grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.95fr);
+}
+
 .profile-progress-panel {
   display: grid;
   gap: 1rem;
@@ -1016,12 +1194,42 @@ a {
   background: rgba(8, 14, 26, 0.56);
 }
 
+.profile-progress-panel--theory .profile-progress-list {
+  gap: 0.7rem;
+}
+
+.profile-progress-panel--theory .profile-progress-item {
+  padding: 0.75rem;
+  border: 1px solid rgba(96, 165, 250, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.38);
+}
+
 .profile-progress-panel__header,
 .profile-progress-item__top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.profile-progress-item__icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  object-fit: cover;
+}
+
+.profile-progress-item__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.profile-progress-item__title strong {
+  color: var(--title);
+  font-size: 0.95rem;
 }
 
 .profile-progress-panel__header h2 {
@@ -1087,21 +1295,245 @@ a {
 .profile-task-stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
-.profile-task-stats div {
+.profile-task-stats--grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1400px) {
+  .profile-task-stats--grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-task-stats div,
+.profile-task-stat {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.8rem;
-  border: 1px solid rgba(96, 165, 250, 0.16);
-  border-radius: 0.75rem;
+  gap: 0.25rem;
+  padding: 0.65rem 0.4rem;
+  min-width: 0;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: 0.7rem;
   background: rgba(15, 23, 42, 0.52);
+  text-align: center;
+}
+
+.profile-task-stat__label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  color: rgba(147, 197, 253, 0.78);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-task-stat__value {
+  color: var(--title);
+  font-size: 1.4rem;
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-task-stat--accent {
+  border-color: rgba(20, 184, 166, 0.45);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.55), rgba(20, 184, 166, 0.16));
+}
+
+.profile-task-stat--accent .profile-task-stat__value {
+  background: linear-gradient(135deg, #5eead4, #60a5fa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .profile-task-stats strong {
   color: var(--title);
   font-size: 1.1rem;
+}
+
+/* Visbiežāk lietotā valoda — kartīte ar logo */
+.profile-favourite-language {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 42, 0.55);
+  margin-top: 0.6rem;
+}
+
+.profile-favourite-language__icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  object-fit: cover;
+}
+
+.profile-favourite-language__text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.profile-favourite-language__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(147, 197, 253, 0.78);
+  font-weight: 800;
+}
+
+.profile-favourite-language__text strong {
+  color: var(--title);
+  font-size: 1rem;
+}
+
+.representations-view {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.representations-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.representations-lead {
+  max-width: 70ch;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.7;
+}
+
+.representations-summary,
+.representation-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(7rem, 1fr));
+  gap: 0.65rem;
+}
+
+.representations-summary div,
+.representation-metrics div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(96, 165, 250, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(8, 14, 26, 0.48);
+}
+
+.representations-summary span,
+.representation-metrics span {
+  color: rgba(226, 232, 240, 0.66);
+  font-size: var(--font-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.representations-summary strong,
+.representation-metrics strong {
+  color: var(--title);
+  font-size: 1.28rem;
+  line-height: 1.15;
+}
+
+.representations-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.85fr) minmax(18rem, 0.85fr);
+  gap: 0.7rem;
+}
+
+.representations-stats-panel {
+  grid-column: 1 / -1;
+}
+
+.representations-title,
+.representations-subtitle {
+  color: var(--title);
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.representation-form,
+.representation-list,
+.representation-detail,
+.representation-member-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.representations-panel-header,
+.representation-detail__heading,
+.representation-list-item,
+.representation-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.representation-list-item,
+.representation-member {
+  padding: 0.75rem;
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.representation-list-item > div,
+.representation-detail__heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.representation-list-item strong,
+.representation-detail__heading strong,
+.representation-member span {
+  color: var(--title);
+  font-weight: 850;
+}
+
+.representation-list-item span,
+.representation-detail__heading span,
+.representation-detail__heading small,
+.representation-member small {
+  color: rgba(226, 232, 240, 0.64);
+}
+
+.representation-tabs,
+.rating-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.representation-member {
+  color: inherit;
+}
+
+.representation-member:hover,
+.representation-member:focus-visible {
+  border-color: rgba(147, 197, 253, 0.38);
+  background: rgba(37, 99, 235, 0.14);
+}
+
+.representation-member strong {
+  color: #bfdbfe;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating-controls__grid--compact {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, auto);
 }
 
 .theory-panel {
@@ -1113,27 +1545,144 @@ a {
   color: rgba(226, 232, 240, 0.78);
 }
 
+.theory-heading-copy {
+  flex: 1 1 34rem;
+  min-width: 0;
+}
+
+.theory-language-progress {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 58rem;
+}
+
+.theory-language-progress__label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  color: rgba(203, 213, 225, 0.82);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.theory-language-progress__label strong {
+  color: #99f6e4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.theory-language-progress__track {
+  display: block;
+  width: 100%;
+  height: 0.58rem;
+  overflow: hidden;
+  border: 1px solid rgba(20, 184, 166, 0.2);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.theory-language-progress__bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #14b8a6, #60a5fa);
+  transition: width 0.2s ease;
+}
+
 .theory-panel__body {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.6rem;
 }
 
 .theory-language-badge {
   width: 4.4rem;
   height: 4.4rem;
   flex-shrink: 0;
+  margin: 0.4rem 1.25rem;
   border-radius: 1rem;
   border: 1px solid rgba(96, 165, 250, 0.28);
   object-fit: cover;
   box-shadow: 0 12px 26px rgba(2, 6, 23, 0.32);
 }
 
+/* ─── Teorijas augšējā josla (kopīga gan tēmu sarakstam, gan lasītājam) ─── */
+
+.theory-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.25rem 1rem;
+  width: 100%;
+}
+
+.theory-header > .theory-language-badge {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+}
+
+.theory-header > .theory-heading-copy {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.theory-header > .theory-header__actions {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+}
+
+.theory-header > .theory-header__progress {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+  max-width: none;
+}
+
+.theory-header > .theory-nav-buttons {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+}
+
+.theory-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .theory-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .theory-header > .theory-header__actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+
+  .theory-header > .theory-header__progress {
+    grid-row: 2;
+  }
+}
+
+.theory-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 
 .theory-language-overview {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 3rem;
+  padding: 1rem 2rem;
   border: 1px solid rgba(96, 165, 250, 0.18);
   border-radius: 1rem;
   background: rgba(8, 14, 26, 0.55);
@@ -1143,6 +1692,7 @@ a {
   width: 5rem;
   height: 5rem;
   flex-shrink: 0;
+  margin: 0 3rem;
   border-radius: 1rem;
   border: 1px solid rgba(96, 165, 250, 0.24);
   object-fit: cover;
@@ -1616,12 +2166,23 @@ a {
 .theory-reader__header-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
+}
+
+.theory-reader__header-top > h2 {
+  flex-shrink: 0;
+}
+
+.theory-reader__header-top .theory-page-nav {
+  flex: 1 1 auto;
+  justify-content: center;
+  margin: 0;
 }
 
 .theory-reader__header-right {
   flex-shrink: 0;
+  margin-left: auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1725,7 +2286,8 @@ a {
   align-items: center;
   gap: 1rem;
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding: 1.15rem 1.1rem;
+  min-height: 4.25rem;
   border: 1px solid rgba(96, 165, 250, 0.2);
   border-radius: 0.6rem;
   background: rgba(15, 23, 42, 0.62);
@@ -1765,8 +2327,10 @@ a {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.35rem;
   min-width: 6.5rem;
+  min-height: 3.65rem;
 }
 
 .theory-list-item__body {
@@ -1881,8 +2445,7 @@ a {
 
 .theory-search {
   min-width: 12rem;
-  flex: 1 1 12rem;
-  max-width: 22rem;
+  flex: 1 1 auto;
 }
 
 .theory-filter-group {
@@ -1891,6 +2454,106 @@ a {
   border-radius: 0.5rem;
   overflow: hidden;
   background: rgba(8, 14, 26, 0.6);
+}
+
+/* ─── "Pievienot" dropdown ──────────────────────────────────────────────────── */
+
+.theory-add-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.theory-add-menu__caret {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+}
+
+.theory-add-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 999;
+}
+
+.theory-add-menu__list {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 12rem;
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+  background: rgba(15, 23, 42, 0.97);
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  border-radius: 0.55rem;
+  box-shadow: 0 14px 32px rgba(2, 6, 23, 0.55);
+  z-index: 1000;
+}
+
+.theory-add-menu__item {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.4rem;
+  color: var(--text);
+  text-align: left;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.theory-add-menu__item:hover,
+.theory-add-menu__item:focus-visible {
+  background: rgba(37, 99, 235, 0.22);
+  color: var(--title);
+  outline: none;
+}
+
+/* ─── Topic picker dialog ──────────────────────────────────────────────────── */
+
+.theory-pick-topic-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.theory-pick-topic-item {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 0.55rem;
+  background: rgba(8, 14, 26, 0.55);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.theory-pick-topic-item:hover,
+.theory-pick-topic-item:focus-visible {
+  border-color: rgba(147, 197, 253, 0.5);
+  background: rgba(37, 99, 235, 0.16);
+  outline: none;
+}
+
+.theory-pick-topic-item strong {
+  color: var(--title);
+  font-size: 0.98rem;
+}
+
+.theory-pick-topic-item span {
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .theory-add-topic-bar {
@@ -1923,20 +2586,37 @@ a {
   font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
 }
 
 .theory-page-btn:hover:not(:disabled) {
   border-color: rgba(147, 197, 253, 0.6);
   background: rgba(37, 99, 235, 0.2);
   color: var(--title);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.4);
+}
+
+.theory-page-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.32);
 }
 
 .theory-page-btn--active {
   border-color: rgba(96, 165, 250, 0.72) !important;
-  background: rgba(37, 99, 235, 0.4) !important;
-  color: #bfdbfe !important;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.55), rgba(20, 184, 166, 0.45)) !important;
+  color: #f0f9ff !important;
   cursor: default;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+.theory-page-btn--active:hover {
+  transform: none;
 }
 
 .theory-page-btn--read {
@@ -1956,6 +2636,19 @@ a {
   cursor: not-allowed;
 }
 
+/* ─── Reader edit toolbar (Pievienot / Rediģēt / Dzēst) ─────────────────── */
+
+.theory-reader__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed rgba(96, 165, 250, 0.22);
+  border-radius: 0.6rem;
+  background: rgba(8, 14, 26, 0.4);
+}
+
 .theory-reader__page-label {
   color: rgba(226, 232, 240, 0.78);
   font-weight: 800;
@@ -1965,7 +2658,7 @@ a {
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.88rem;
   resize: vertical;
-  min-height: 280px;
+  min-height: 220px;
 }
 
 .admin-proposal-preview {
@@ -2318,20 +3011,25 @@ a {
 .app-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1080;
+  z-index: 1200; /* virs site-navbar (1040) un Bootstrap default modal (1055) */
   background: rgba(2, 6, 23, 0.74);
   backdrop-filter: blur(10px);
   display: grid;
-  place-items: center;
-  padding: 1rem;
+  place-items: start center;
+  padding: 5.5rem 1rem 1.5rem;
+  overflow-y: auto;
 }
 
 .app-modal {
   width: min(820px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
   background: rgba(12, 18, 34, 0.98);
   border-color: rgba(96, 165, 250, 0.22) !important;
   box-shadow: 0 24px 72px rgba(2, 6, 23, 0.58);
   color: var(--title);
+  overflow: hidden;
 }
 
 .app-modal--sm {
@@ -2340,6 +3038,12 @@ a {
 
 .app-modal--lg {
   width: min(1040px, 100%);
+}
+
+.app-modal > .card-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .app-modal .card-body {
@@ -3104,6 +3808,8 @@ a {
 .quiz-progress {
   display: grid;
   gap: 0.65rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
 .quiz-progress__track {
@@ -3704,14 +4410,25 @@ a {
 
 /* ── Exercise detail view ───────────────────────────────────────────────── */
 
+.app-back-link,
 .ex-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
   font-size: 0.875rem;
   color: rgba(20, 184, 166, 0.8);
   text-decoration: none;
   font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
   transition: color 0.15s;
 }
 
+.app-back-link:hover,
+.app-back-link:focus-visible,
 .ex-back-link:hover {
   color: #99f6e4;
 }
@@ -4685,15 +5402,22 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 .app-modal {
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
   border-color: var(--panel-border) !important;
   border-radius: var(--radius-panel);
   background: rgba(12, 18, 34, 0.98);
   overflow: hidden;
 }
 
+.app-modal > .card-body,
 .app-modal .card-body {
-  max-height: calc(100vh - 2rem);
+  /* iekšā ritjosla, ja saturs garāks par modāļa max-height */
+  max-height: none;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .app-modal .auth-input,
@@ -4812,6 +5536,33 @@ input[type="search"]::-webkit-search-results-decoration {
 }
 
 @media (max-width: 720px) {
+  .profile-hero,
+  .representations-hero,
+  .representations-panel-header,
+  .representation-detail__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-hero__score {
+    width: 100%;
+    text-align: left;
+  }
+
+  .profile-overview-grid,
+  .profile-progress-grid,
+  .profile-progress-grid--wide-first,
+  .representations-layout,
+  .representations-summary,
+  .representation-metrics,
+  .rating-controls__grid--compact {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-stat--wide {
+    grid-column: auto;
+  }
+
   .quiz-finish {
     grid-template-columns: 1fr;
   }

@@ -10,7 +10,9 @@ public class PublicUserProfileResponse
 
     public string Role { get; set; } = string.Empty;
 
-    public string? EducationInstitution { get; set; }
+    public string? Representation { get; set; }
+
+    public string? Bio { get; set; }
 
     public int Rating { get; set; }
 

@@ -10,5 +10,11 @@ public class UpdateProfileRequest
 
     public DateOnly? BirthDate { get; set; }
 
-    public string? EducationInstitution { get; set; }
+    public string? Representation { get; set; }
+
+    public string? Bio { get; set; }
+
+    public string? CurrentPassword { get; set; }
+
+    public string? NewPassword { get; set; }
 }

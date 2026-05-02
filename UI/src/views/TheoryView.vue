@@ -25,6 +25,7 @@ import {
   type TheoryQuizQuestionPayload,
 } from '../services/theoryRequests'
 import { clearDraft, loadDraft, saveDraft } from '../services/drafts'
+import algoritmiLogo from '../assets/algoritmi.png'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: false })
 
@@ -79,6 +80,9 @@ const showNextTopicPrompt = computed(() =>
 )
 
 const currentTopicHasQuiz = computed(() => Boolean(selectedTopic.value?.hasQuiz))
+const theoryBackLabel = computed(() =>
+  activeTopicId.value && selectedLanguage.value ? selectedLanguage.value.title : 'Programmēšanas valodas',
+)
 
 const showQuizPrompt = computed(() =>
   Boolean(
@@ -103,6 +107,72 @@ const previewMarkdown = computed(() => md.render(form.markdown || ''))
 const canSubmitTheoryRequests = computed(() => hasAnyRole(['Pedagogs', 'Administrators']))
 const canManageTheory = computed(() => hasAnyRole(['Administrators']))
 const theoryEditingEnabled = ref(false)
+const isAddMenuOpen = ref(false)
+const isPickQuizTopicOpen = ref(false)
+
+// ─── Languages list filters ──────────────────────────────────────────────────
+const languageSearch = ref('')
+const hideCompletedLanguages = ref(false)
+
+const ALGORITHM_TITLES = new Set(['algoritmi'])
+
+function isAlgorithmCategory(language: { title: string }) {
+  return ALGORITHM_TITLES.has(language.title.trim().toLowerCase())
+}
+
+function getLanguageImageUrl(language: { title: string; imageUrl: string }): string {
+  return isAlgorithmCategory(language) ? algoritmiLogo : language.imageUrl
+}
+
+function applyLanguageFilters(list: TheoryLanguage[]): TheoryLanguage[] {
+  let result = list
+  if (canShowReadProgress.value && hideCompletedLanguages.value) {
+    result = result.filter((language) => language.progressPercent < 100)
+  }
+  const query = languageSearch.value.trim().toLowerCase()
+  if (query) {
+    result = result.filter((language) =>
+      `${language.title} ${language.description}`.toLowerCase().includes(query),
+    )
+  }
+  return result
+}
+
+const programmingLanguages = computed(() =>
+  applyLanguageFilters(theoryLanguages.value.filter((lang) => !isAlgorithmCategory(lang))),
+)
+
+const algorithmCategories = computed(() =>
+  applyLanguageFilters(theoryLanguages.value.filter((lang) => isAlgorithmCategory(lang))).map(
+    (lang) => ({ ...lang, imageUrl: algoritmiLogo }),
+  ),
+)
+
+const filteredLanguages = computed(() => [
+  ...programmingLanguages.value,
+  ...algorithmCategories.value,
+])
+
+const overallProgressPercent = computed(() => {
+  // Aprēķina TIKAI no programmēšanas valodām — algoritmu kategorijas neietekmē
+  // programmēšanas valodu kopējo apguves procentu.
+  const languages = theoryLanguages.value.filter((lang) => !isAlgorithmCategory(lang))
+  if (!languages.length) return 0
+  const totalTopics = languages.reduce((sum, language) => sum + (language.topicCount ?? 0), 0)
+  if (totalTopics > 0) {
+    const weighted = languages.reduce(
+      (sum, language) => sum + (language.progressPercent ?? 0) * (language.topicCount ?? 0),
+      0,
+    )
+    return Math.round(weighted / totalTopics)
+  }
+  const sum = languages.reduce((s, language) => s + (language.progressPercent ?? 0), 0)
+  return Math.round(sum / languages.length)
+})
+
+function goToHome() {
+  void router.push({ name: 'home' })
+}
 const modalTitle = computed(() => {
   if (requestCategory.value === 'addContent') return 'Pievienot teoriju'
   if (requestCategory.value === 'editContent') return 'Rediģēt teoriju'
@@ -324,6 +394,38 @@ function closeQuizModal() {
   quizRequestSuccess.value = ''
 }
 
+function toggleAddMenu() {
+  isAddMenuOpen.value = !isAddMenuOpen.value
+}
+
+function closeAddMenu() {
+  isAddMenuOpen.value = false
+}
+
+function startAddTopicFromMenu() {
+  closeAddMenu()
+  openModal('addTopic')
+}
+
+function startAddQuizFromMenu() {
+  closeAddMenu()
+  isPickQuizTopicOpen.value = true
+}
+
+function closePickQuizTopic() {
+  isPickQuizTopicOpen.value = false
+}
+
+const topicsWithoutQuiz = computed(() => {
+  if (!selectedLanguage.value) return []
+  return selectedLanguage.value.topics.filter((topic) => !topic.hasQuiz)
+})
+
+function pickTopicForQuiz(topic: TheoryTopic) {
+  closePickQuizTopic()
+  openQuizModal(topic, 'Add')
+}
+
 function addQuizQuestion() {
   if (quizForm.questions.length >= maxQuizQuestions) return
   quizForm.questions.push(createBlankQuizQuestion())
@@ -421,7 +523,7 @@ const topicSearch = ref('')
 const topicDiffFilter = ref('all')
 const hideCompleted = ref(false)
 const topicPage = ref(1)
-const topicsPerPage = 8
+const topicsPerPage = 4
 
 const filteredTopics = computed(() => {
   if (!selectedLanguage.value) return []
@@ -867,6 +969,15 @@ function backToTopics() {
   void router.replace({ name: 'theory', query: { language: activeLanguageId.value } })
 }
 
+function goBackFromTheory() {
+  if (activeTopicId.value && selectedLanguage.value) {
+    backToTopics()
+    return
+  }
+
+  backToLanguages()
+}
+
 function goToPage(pageNumber: number) {
   if (!selectedLanguage.value || !selectedTopic.value) return
   void router.replace({
@@ -983,77 +1094,44 @@ function difficultyClass(difficulty: string) {
   return `theory-difficulty--${normalized}`
 }
 
+function topicQuizPercent(topic: TheoryTopic): number {
+  if (!topic.quizQuestionCount) return 0
+  return Math.round((topic.quizAnsweredCount / topic.quizQuestionCount) * 100)
+}
+
 </script>
 
 <template>
-  <section class="content-panel card border-primary-subtle theory-panel" :class="{ 'theory-editing-enabled': theoryEditingEnabled }">
+  <div class="theory-breadcrumb mb-3">
+    <button v-if="!activeLanguageId" class="app-back-link" type="button" @click="goToHome">
+      <span aria-hidden="true">←</span>
+      Mājas lapa
+    </button>
+    <template v-else>
+      <button class="app-back-link" type="button" @click="backToLanguages">
+        <span aria-hidden="true">←</span>
+        Teorija
+      </button>
+      <button
+        v-if="activeTopicId && selectedLanguage"
+        class="app-back-link"
+        type="button"
+        @click="backToTopics"
+      >
+        <span aria-hidden="true">←</span>
+        {{ selectedLanguage.title }}
+      </button>
+    </template>
+  </div>
+
+  <section
+    v-if="!activeLanguageId && !isLoadingLanguages && algorithmCategories.length"
+    class="content-panel card border-primary-subtle theory-panel mb-3"
+  >
     <div class="card-body p-3 p-lg-4 theory-panel__body">
-      <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-        <div class="d-flex flex-wrap align-items-center gap-3">
-          <img
-            v-if="selectedLanguage"
-            class="theory-language-badge"
-            :src="selectedLanguage.imageUrl"
-            :alt="selectedLanguage.title"
-          />
-          <div>
-            <h1 class="section-heading mb-2">
-              <template v-if="selectedTopic && activeTopicId">{{ currentPage?.topicTitle ?? selectedTopic.title }}</template>
-              <template v-else-if="selectedLanguage">{{ selectedLanguage.title }}</template>
-              <template v-else>Programmēšanas valodas</template>
-            </h1>
-            <p class="theory-lead mb-0">
-              <template v-if="selectedTopic && activeTopicId">{{ selectedTopic.description }}</template>
-              <template v-else-if="selectedLanguage">{{ selectedLanguage.description }}</template>
-              <template v-else>Izvēlies programmēšanas valodu, lai sāktu mācīties.</template>
-            </p>
-            <div v-if="canShowReadProgress && selectedTopic && activeTopicId" class="theory-progress-pill mt-2">
-              {{ selectedTopic.progressPercent }}% apgūts
-            </div>
-            <div v-else-if="canShowReadProgress && selectedLanguage" class="theory-progress-pill mt-2">
-              {{ selectedLanguage.progressPercent }}% apgūts
-            </div>
-          </div>
-        </div>
-
-        <div class="theory-nav-buttons">
-          <div v-if="activeLanguageId" class="theory-back-nav" aria-label="Atpakaļ navigācija">
-            <button
-              v-if="selectedLanguage && activeTopicId"
-              class="btn btn-theory-back btn-sm"
-              type="button"
-              @click="backToTopics"
-            >
-              <span aria-hidden="true">&larr;</span>
-              Atpakaļ uz {{ selectedLanguage.title }} tēmām
-            </button>
-            <button v-if="!activeTopicId" class="btn btn-outline-light btn-sm" type="button" @click="backToLanguages">
-              <span v-if="!activeTopicId" aria-hidden="true">&larr;</span>
-              Atpakaļ uz valodām
-            </button>
-          </div>
-          <div v-if="showReader && canSubmitTheoryRequests && currentPage" class="d-flex flex-wrap gap-2">
-            <button class="btn btn-theory-edit btn-sm" type="button" @click="openModal('editContent')">Rediģēt teoriju</button>
-            <button class="btn btn-theory-add btn-sm" type="button" @click="openModal('addContent')">Pievienot teoriju</button>
-            <button
-              v-if="canManageTheory"
-              class="btn btn-theory-delete btn-sm"
-              type="button"
-              @click="openDeleteTheoryModal('page')"
-            >
-              Dzēst lapu
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="theoryError" class="alert alert-danger mb-0">{{ theoryError }}</div>
-
-      <div v-if="!activeLanguageId && isLoadingLanguages" class="theory-empty">Ielādē valodas...</div>
-
-      <div v-else-if="!activeLanguageId" class="theory-list">
+      <div class="theory-list theory-list--languages">
         <button
-          v-for="language in theoryLanguages"
+          v-for="language in algorithmCategories"
           :key="language.id"
           type="button"
           class="theory-list-item"
@@ -1080,6 +1158,150 @@ function difficultyClass(difficulty: string) {
             </div>
           </div>
         </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-panel card border-primary-subtle theory-panel" :class="{ 'theory-editing-enabled': theoryEditingEnabled }">
+    <div class="card-body p-3 p-lg-4 theory-panel__body">
+      <div class="theory-header">
+        <img
+          v-if="selectedLanguage"
+          class="theory-language-badge"
+          :src="getLanguageImageUrl(selectedLanguage)"
+          :alt="selectedLanguage.title"
+        />
+        <div class="theory-heading-copy">
+          <h1 class="section-heading mb-0">
+            <template v-if="selectedTopic && activeTopicId">{{ currentPage?.topicTitle ?? selectedTopic.title }}</template>
+            <template v-else-if="selectedLanguage">{{ selectedLanguage.title }}</template>
+            <template v-else>Programmēšanas valodas</template>
+          </h1>
+          <p v-if="selectedTopic && activeTopicId" class="theory-lead mb-0 mt-1">{{ selectedTopic.description }}</p>
+          <p v-else-if="selectedLanguage" class="theory-lead mb-0 mt-1">{{ selectedLanguage.description }}</p>
+        </div>
+        <div
+          v-if="showReader && canSubmitTheoryRequests && currentPage"
+          class="theory-header__actions"
+        >
+          <button class="btn btn-theory-edit btn-sm" type="button" @click="openModal('editContent')">Rediģēt teoriju</button>
+          <button class="btn btn-theory-add btn-sm" type="button" @click="openModal('addContent')">Pievienot teoriju</button>
+          <button
+            v-if="canManageTheory"
+            class="btn btn-theory-delete btn-sm"
+            type="button"
+            @click="openDeleteTheoryModal('page')"
+          >
+            Dzēst lapu
+          </button>
+        </div>
+        <div v-if="canShowReadProgress && selectedTopic && activeTopicId" class="theory-language-progress theory-header__progress">
+          <div class="theory-language-progress__label">
+            <strong>{{ selectedTopic.progressPercent }}% apgūts</strong>
+          </div>
+          <span class="theory-language-progress__track" aria-hidden="true">
+            <span
+              class="theory-language-progress__bar"
+              :style="{ width: `${selectedTopic.progressPercent}%` }"
+            ></span>
+          </span>
+        </div>
+        <div
+          v-else-if="canShowReadProgress && selectedLanguage"
+          class="theory-language-progress theory-header__progress"
+          role="progressbar"
+          aria-label="Valodas apguves progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="selectedLanguage.progressPercent"
+        >
+          <div class="theory-language-progress__label">
+            <strong>{{ selectedLanguage.progressPercent }}% apgūts</strong>
+          </div>
+          <span class="theory-language-progress__track" aria-hidden="true">
+            <span
+              class="theory-language-progress__bar"
+              :style="{ width: `${selectedLanguage.progressPercent}%` }"
+            ></span>
+          </span>
+        </div>
+        <div
+          v-else-if="canShowReadProgress && !activeLanguageId && theoryLanguages.length"
+          class="theory-language-progress theory-header__progress"
+          role="progressbar"
+          aria-label="Kopējais apguves progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="overallProgressPercent"
+        >
+          <div class="theory-language-progress__label">
+            <strong>{{ overallProgressPercent }}% apgūts</strong>
+          </div>
+          <span class="theory-language-progress__track" aria-hidden="true">
+            <span
+              class="theory-language-progress__bar"
+              :style="{ width: `${overallProgressPercent}%` }"
+            ></span>
+          </span>
+        </div>
+      </div>
+
+      <div v-if="theoryError" class="alert alert-danger mb-0">{{ theoryError }}</div>
+
+      <div v-if="!activeLanguageId && isLoadingLanguages" class="theory-empty">Ielādē valodas...</div>
+
+      <div v-else-if="!activeLanguageId" class="theory-topics-wrap">
+        <div class="theory-topics-controls">
+          <input
+            v-model="languageSearch"
+            type="search"
+            class="theory-search auth-input"
+            placeholder="Meklēt..."
+          />
+          <div v-if="canShowReadProgress" class="theory-filter-group">
+            <button
+              type="button"
+              class="ex-filter-btn"
+              :class="{ active: hideCompletedLanguages }"
+              @click="hideCompletedLanguages = !hideCompletedLanguages"
+            >Paslēpt apgūtos</button>
+          </div>
+        </div>
+
+        <div v-if="programmingLanguages.length" class="theory-list theory-list--languages">
+          <button
+            v-for="language in programmingLanguages"
+            :key="language.id"
+            type="button"
+            class="theory-list-item"
+            @click="selectLanguage(language.id)"
+          >
+            <img
+              class="theory-list-item__image"
+              :src="language.imageUrl"
+              :alt="language.title"
+            />
+            <div class="theory-list-item__body">
+              <strong>{{ language.title }}</strong>
+              <span>{{ language.description }}</span>
+            </div>
+            <div class="theory-list-item__meta">
+              <div class="theory-language-meta-count">
+                <span class="theory-card__kicker">{{ language.topicCount }} tēmas</span>
+              </div>
+              <div v-if="canShowReadProgress" class="theory-list-item__progress">
+                <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                <span class="theory-progress-track" aria-hidden="true">
+                  <span class="theory-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                </span>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <div v-if="!filteredLanguages.length" class="theory-empty">
+          Nav valodu, kas atbilst filtriem.
+        </div>
       </div>
 
       <div v-else-if="isLoadingLanguage" class="theory-empty">Ielādē valodu...</div>
@@ -1119,7 +1341,41 @@ function difficultyClass(difficulty: string) {
             >
               {{ theoryEditingEnabled ? 'Paslēpt rediģēšanu' : 'Iespējot rediģēšanu' }}
             </button>
-            <button class="btn btn-theory-add btn-sm" type="button" @click="openModal('addTopic')">Pievienot tēmu</button>
+            <div class="theory-add-menu" @keydown.esc="closeAddMenu">
+              <button
+                class="btn btn-theory-add btn-sm"
+                type="button"
+                aria-haspopup="menu"
+                :aria-expanded="isAddMenuOpen"
+                @click="toggleAddMenu"
+              >
+                Pievienot
+                <span class="theory-add-menu__caret" aria-hidden="true">▾</span>
+              </button>
+              <div
+                v-if="isAddMenuOpen"
+                class="theory-add-menu__backdrop"
+                @click="closeAddMenu"
+              ></div>
+              <ul v-if="isAddMenuOpen" class="theory-add-menu__list" role="menu">
+                <li role="none">
+                  <button
+                    class="theory-add-menu__item"
+                    type="button"
+                    role="menuitem"
+                    @click="startAddTopicFromMenu"
+                  >Pievienot tēmu</button>
+                </li>
+                <li role="none">
+                  <button
+                    class="theory-add-menu__item"
+                    type="button"
+                    role="menuitem"
+                    @click="startAddQuizFromMenu"
+                  >Pievienot testu</button>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
@@ -1171,6 +1427,9 @@ function difficultyClass(difficulty: string) {
                     Dzēst
                   </button>
                 </div>
+                <div class="theory-language-meta-count">
+                  <span class="theory-card__kicker">{{ topic.pageCount }} lapas</span>
+                </div>
                 <div v-if="canShowReadProgress" class="theory-list-item__progress">
                   <span class="theory-card__progress">{{ topic.progressPercent }}% apgūts</span>
                   <span class="theory-progress-track" aria-hidden="true">
@@ -1198,11 +1457,9 @@ function difficultyClass(difficulty: string) {
             >
               <div class="theory-list-item__badges">
                 <span class="theory-list-item__quiz-tag">Tests</span>
-                <span class="theory-volume">{{ topic.quizQuestionCount }} jautājumi</span>
               </div>
               <div class="theory-list-item__body">
                 <strong>Tests: {{ topic.title }}</strong>
-                <span>Pārbaudi savas zināšanas — par katru pareizu atbildi +1 reitinga punkts.</span>
               </div>
               <div class="theory-list-item__meta">
                 <div class="theory-list-item__actions">
@@ -1223,8 +1480,19 @@ function difficultyClass(difficulty: string) {
                     Dzēst
                   </button>
                 </div>
-                <div v-if="canShowReadProgress" class="theory-list-item__quiz-meta">
-                  <span>{{ topic.quizAnsweredCount }} / {{ topic.quizQuestionCount }} atbildēti</span>
+                <div class="theory-language-meta-count">
+                  <span class="theory-card__kicker">{{ topic.quizQuestionCount }} jautājumi</span>
+                </div>
+                <div v-if="canShowReadProgress" class="theory-list-item__progress">
+                  <span class="theory-card__progress">
+                    {{ topicQuizPercent(topic) }}% izpildīts
+                  </span>
+                  <span class="theory-progress-track" aria-hidden="true">
+                    <span
+                      class="theory-progress-bar"
+                      :style="{ width: `${topicQuizPercent(topic)}%` }"
+                    ></span>
+                  </span>
                 </div>
               </div>
             </article>
@@ -1249,26 +1517,26 @@ function difficultyClass(difficulty: string) {
             <h2 class="section-heading mb-0">
               Lapa {{ currentPage?.pageIndex }} no {{ currentPage?.pageCount }}
             </h2>
+            <div v-if="currentPage && currentPage.pageCount > 1" class="theory-page-nav theory-page-nav--sm">
+              <button
+                v-for="n in currentPage.pageCount"
+                :key="n"
+                type="button"
+                class="theory-page-btn"
+                :class="{
+                  'theory-page-btn--active': n === currentPage.pageIndex,
+                  'theory-page-btn--read': canShowReadProgress && readPageIndices.has(n) && n !== currentPage.pageIndex
+                }"
+                :disabled="isLoadingPage || isCompletingPage"
+                @click="n !== currentPage.pageIndex && goToPage(n)"
+              >{{ n }}</button>
+            </div>
             <div class="theory-reader__header-right">
               <span class="theory-difficulty" :class="difficultyClass(currentPage?.difficulty || '')">
                 {{ formatDifficulty(currentPage?.difficulty || '') }}
               </span>
               <span class="theory-volume">{{ currentPage?.estimatedMinutes }} min</span>
             </div>
-          </div>
-          <div v-if="currentPage && currentPage.pageCount > 1" class="theory-page-nav theory-page-nav--sm">
-            <button
-              v-for="n in currentPage.pageCount"
-              :key="n"
-              type="button"
-              class="theory-page-btn"
-              :class="{
-                'theory-page-btn--active': n === currentPage.pageIndex,
-                'theory-page-btn--read': canShowReadProgress && readPageIndices.has(n) && n !== currentPage.pageIndex
-              }"
-              :disabled="isLoadingPage || isCompletingPage"
-              @click="n !== currentPage.pageIndex && goToPage(n)"
-            >{{ n }}</button>
           </div>
         </header>
 
@@ -1312,6 +1580,38 @@ function difficultyClass(difficulty: string) {
       <div v-else-if="selectedTopic" class="theory-empty">Lapa pašlaik nav pieejama.</div>
     </div>
   </section>
+
+  <div v-if="isPickQuizTopicOpen" class="app-modal-backdrop" @click.self="closePickQuizTopic">
+    <div class="app-modal app-modal--sm card border-primary-subtle">
+      <div class="card-body p-3 p-lg-4">
+        <h2 class="section-heading mb-3">Izvēlies tēmu testam</h2>
+        <p class="logout-text logout-text--navbar mb-3">
+          Izvēlies tēmu, kurai pievienot testu. Sarakstā redzamas tikai tēmas, kurām tests vēl nav izveidots.
+        </p>
+
+        <div v-if="!topicsWithoutQuiz.length" class="theory-empty">
+          Visām tēmām jau ir testi. Lai rediģētu esošu testu, nospied tēmas rindā uz "Rediģēt testu".
+        </div>
+
+        <ul v-else class="theory-pick-topic-list">
+          <li v-for="topic in topicsWithoutQuiz" :key="topic.id">
+            <button
+              class="theory-pick-topic-item"
+              type="button"
+              @click="pickTopicForQuiz(topic)"
+            >
+              <strong>{{ topic.title }}</strong>
+              <span>{{ topic.description }}</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button class="btn btn-outline-light" type="button" @click="closePickQuizTopic">Atcelt</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div v-if="isDeleteTheoryModalOpen" class="app-modal-backdrop" @click.self="closeDeleteTheoryModal">
     <div class="app-modal app-modal--sm card border-primary-subtle">
@@ -1533,7 +1833,7 @@ function difficultyClass(difficulty: string) {
               id="formMarkdown"
               v-model="form.markdown"
               class="form-control auth-input theory-proposal-editor"
-              rows="18"
+              rows="9"
               placeholder="# Virsraksts&#10;&#10;Saturs šeit..."
             ></textarea>
             <div v-else class="theory-proposal-preview theory-markdown" v-html="previewMarkdown"></div>

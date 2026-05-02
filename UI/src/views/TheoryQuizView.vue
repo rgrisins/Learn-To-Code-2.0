@@ -3,6 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authState, isAuthenticated } from '../services/auth'
 import { getTheoryLanguage, type TheoryLanguageDetail, type TheoryTopic } from '../services/theory'
+import algoritmiLogo from '../assets/algoritmi.png'
+
+const ALGORITHM_TITLES = new Set(['algoritmi'])
+
+function getLanguageImageUrl(lang: { title: string; imageUrl: string }): string {
+  return ALGORITHM_TITLES.has(lang.title.trim().toLowerCase()) ? algoritmiLogo : lang.imageUrl
+}
 import {
   getTheoryQuiz,
   submitTheoryQuizAnswer,
@@ -242,7 +249,11 @@ function backToTopic() {
   })
 }
 
-function backToTopics() {
+function goToLanguages() {
+  router.push({ name: 'theory' })
+}
+
+function goToLanguageTopics() {
   router.push({ name: 'theory', query: { language: languageCode.value } })
 }
 
@@ -351,18 +362,44 @@ function questionStatus(question: TheoryQuizQuestion, index: number): string {
 </script>
 
 <template>
+  <div class="theory-breadcrumb mb-3">
+    <button class="app-back-link" type="button" @click="goToLanguages">
+      <span aria-hidden="true">←</span>
+      Teorija
+    </button>
+    <button v-if="language" class="app-back-link" type="button" @click="goToLanguageTopics">
+      <span aria-hidden="true">←</span>
+      {{ language.title }}
+    </button>
+    <button class="app-back-link" type="button" @click="backToTopic">
+      <span aria-hidden="true">←</span>
+      {{ quiz?.topicTitle ?? 'Tēma' }}
+    </button>
+  </div>
+
   <section class="content-panel card border-primary-subtle quiz-panel">
     <div class="card-body p-3 p-lg-4">
-      <div class="quiz-panel__header">
-        <div>
-          <button class="btn btn-outline-light btn-sm mb-2" type="button" @click="backToTopics">
-            ← Atpakaļ uz tēmām
-          </button>
-          <h1 class="section-heading mb-1">{{ quiz?.title ?? 'Tests' }}</h1>
-          <p v-if="quiz?.description" class="quiz-panel__lead mb-0">{{ quiz.description }}</p>
+      <div class="theory-header">
+        <img
+          v-if="language"
+          class="theory-language-badge"
+          :src="getLanguageImageUrl(language)"
+          :alt="language.title"
+        />
+        <div class="theory-heading-copy">
+          <h1 class="section-heading mb-0">{{ quiz?.title ?? 'Tests' }}</h1>
+          <p v-if="quiz?.description" class="theory-lead mb-0 mt-1">{{ quiz.description }}</p>
         </div>
-        <div v-if="quiz" class="quiz-panel__counters">
-          <span>{{ answeredSoFar }} / {{ totalQuestions }} atbildēti</span>
+        <div v-if="quiz" class="theory-language-progress theory-header__progress" aria-label="Testa progress">
+          <div class="theory-language-progress__label">
+            <strong>{{ scorePercent }}% apgūts</strong>
+          </div>
+          <span class="theory-language-progress__track" aria-hidden="true">
+            <span
+              class="theory-language-progress__bar"
+              :style="{ width: `${scorePercent}%` }"
+            ></span>
+          </span>
         </div>
       </div>
 
@@ -371,10 +408,7 @@ function questionStatus(question: TheoryQuizQuestion, index: number): string {
       <div v-else-if="loadError" class="alert alert-danger">{{ loadError }}</div>
 
       <template v-else-if="quiz">
-        <div class="quiz-progress mb-3" aria-label="Testa progress">
-          <div class="quiz-progress__track">
-            <div class="quiz-progress__bar" :style="{ width: `${progressPercent}%` }"></div>
-          </div>
+        <div class="quiz-progress" aria-label="Jautājumu navigācija">
           <div class="quiz-progress__nav">
             <button
               v-for="(question, index) in quiz.questions"

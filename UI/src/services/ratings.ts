@@ -5,8 +5,21 @@ export interface RatingUser {
   username?: string | null
   fullName: string
   role: string
-  educationInstitution?: string | null
+  representation?: string | null
   rating: number
+  createdAtUtc: string
+}
+
+export interface RatingRepresentation {
+  id: number
+  name: string
+  description?: string | null
+  memberCount: number
+  totalRating: number
+  averageRating: number
+  theoryProgressPercent: number
+  exerciseSolved: number
+  exerciseSubmissionCount: number
   createdAtUtc: string
 }
 
@@ -21,6 +34,19 @@ export async function getRatingUsers() {
   }
 
   return response.json() as Promise<RatingUser[]>
+}
+
+export async function getRatingRepresentations() {
+  const response = await apiRequest('/api/ratings/representations', {
+    skipAuth: true,
+    skipAuthRefresh: true,
+  })
+
+  if (!response.ok) {
+    throw new Error(await readRatingError(response))
+  }
+
+  return response.json() as Promise<RatingRepresentation[]>
 }
 
 async function readRatingError(response: Response) {
