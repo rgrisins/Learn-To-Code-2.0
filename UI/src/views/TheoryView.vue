@@ -80,9 +80,6 @@ const showNextTopicPrompt = computed(() =>
 )
 
 const currentTopicHasQuiz = computed(() => Boolean(selectedTopic.value?.hasQuiz))
-const theoryBackLabel = computed(() =>
-  activeTopicId.value && selectedLanguage.value ? selectedLanguage.value.title : 'Programmēšanas valodas',
-)
 
 const showQuizPrompt = computed(() =>
   Boolean(
@@ -967,15 +964,6 @@ function backToLanguages() {
 function backToTopics() {
   if (!activeLanguageId.value) return
   void router.replace({ name: 'theory', query: { language: activeLanguageId.value } })
-}
-
-function goBackFromTheory() {
-  if (activeTopicId.value && selectedLanguage.value) {
-    backToTopics()
-    return
-  }
-
-  backToLanguages()
 }
 
 function goToPage(pageNumber: number) {

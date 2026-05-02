@@ -54,7 +54,6 @@ const currentQuestion = computed<TheoryQuizQuestion | null>(() => {
 })
 
 const totalQuestions = computed(() => quiz.value?.questions.length ?? 0)
-const answeredSoFar = computed(() => answeredQuestionIds.value.size)
 const correctSoFar = computed(() => correctQuestionIds.value.size)
 const scorePercent = computed(() => {
   const total = totalQuestions.value
@@ -124,12 +123,6 @@ const correctOptionText = computed(() => {
   const optionId = answerReview.value?.correctOptionId
   if (optionId == null) return ''
   return currentQuestion.value?.options.find((option) => option.id === optionId)?.text ?? ''
-})
-
-const progressPercent = computed(() => {
-  const total = totalQuestions.value
-  if (!total) return 0
-  return Math.round(((questionIndex.value + 1) / total) * 100)
 })
 
 watch(currentQuestion, (question) => {
