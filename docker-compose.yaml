@@ -1,4 +1,17 @@
 services:
+  # Pre-pull sandbox images vienreiz, lai pirmajā koda izpildē nav jāgaida
+  # docker pull (kas pārsniedz 5 sekunžu izpildes timeout).
+  sandbox-images:
+    image: docker:cli
+    container_name: learn_sandbox_pull
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["sh", "-c"]
+    command: >
+      "docker image inspect python:3.11-slim >/dev/null 2>&1 || docker pull python:3.11-slim;
+       docker image inspect eclipse-temurin:21-jdk >/dev/null 2>&1 || docker pull eclipse-temurin:21-jdk"
+
   api:
     build:
       context: .
@@ -14,9 +27,8 @@ services:
         condition: service_started
       minio:
         condition: service_started
-    # Piesaistām host Docker socket, lai API var palaist sandbox konteinerus.
-    # GID jāatbilst host /var/run/docker.sock īpašnieka grupai (parasti "docker").
-    # Pārbaudi ar: stat -c '%g' /var/run/docker.sock
+      sandbox-images:
+        condition: service_completed_successfully
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
