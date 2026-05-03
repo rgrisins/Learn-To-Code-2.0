@@ -27,6 +27,7 @@ const isSolvedNow = ref(false)
 const isSubmitLockedUntilRefresh = ref(false)
 const codeEditorRef = ref<HTMLTextAreaElement | null>(null)
 const codeGutterRef = ref<HTMLDivElement | null>(null)
+const codeHighlightRef = ref<HTMLPreElement | null>(null)
 
 const editorLanguageVersions = {
   python: '3.11',
@@ -160,9 +161,16 @@ async function handleSubmit() {
 
 function diffClass(d: string) {
   const v = d.toLowerCase()
-  if (v === 'viegls' || v === 'easy') return 'diff-easy'
-  if (v === 'grūts' || v === 'hard') return 'diff-hard'
-  return 'diff-medium'
+  if (v === 'viegls' || v === 'easy') return 'theory-difficulty--iesācējs'
+  if (v === 'grūts' || v === 'hard') return 'theory-difficulty--augsts'
+  return 'theory-difficulty--vidējs'
+}
+
+function diffLabel(d: string) {
+  const v = d.toLowerCase()
+  if (v === 'viegls' || v === 'easy') return 'Viegls'
+  if (v === 'grūts' || v === 'hard') return 'Grūts'
+  return 'Vidējs'
 }
 
 function statusLabel(s: string) {
@@ -225,11 +233,118 @@ const codeLineNumbers = computed(() => {
 })
 
 function syncCodeEditorScroll() {
-  if (!codeEditorRef.value || !codeGutterRef.value) {
+  if (!codeEditorRef.value) {
     return
   }
 
-  codeGutterRef.value.scrollTop = codeEditorRef.value.scrollTop
+  if (codeGutterRef.value) {
+    codeGutterRef.value.scrollTop = codeEditorRef.value.scrollTop
+  }
+  if (codeHighlightRef.value) {
+    codeHighlightRef.value.scrollTop = codeEditorRef.value.scrollTop
+    codeHighlightRef.value.scrollLeft = codeEditorRef.value.scrollLeft
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+const highlightedCode = computed(() => {
+  const lang = (language.value || '').toLowerCase()
+  // Trailing newline ensures the last line is fully visible inside <pre>
+  const source = code.value + '\n'
+
+  if (lang === 'python') {
+    return highlightPython(source)
+  }
+  if (lang === 'java' || lang === 'csharp' || lang === 'cpp' || lang === 'c' || lang === 'javascript') {
+    return highlightCStyle(source)
+  }
+
+  return escapeHtml(source)
+})
+
+function highlightPython(source: string): string {
+  // # comments līdz rindas beigām
+  let result = ''
+  let i = 0
+  while (i < source.length) {
+    const ch = source[i]
+    if (ch === '#') {
+      const newline = source.indexOf('\n', i)
+      const end = newline === -1 ? source.length : newline
+      const comment = source.slice(i, end)
+      result += `<span class="ex-code-comment">${escapeHtml(comment)}</span>`
+      i = end
+    } else if (ch === '"' || ch === "'") {
+      // Saturs starp pēdiņām neuzskata par komentāru
+      const quote = ch
+      let end = i + 1
+      while (end < source.length && source[end] !== quote) {
+        if (source[end] === '\\') end += 1
+        end += 1
+      }
+      end = Math.min(end + 1, source.length)
+      result += escapeHtml(source.slice(i, end))
+      i = end
+    } else {
+      const newline = source.indexOf('\n', i)
+      const end = newline === -1 ? source.length : newline + 1
+      // Pārējā rindas daļa līdz # vai pēdiņām — ātri pārbaudām vēlreiz pa simbolam
+      let chunk = ''
+      let j = i
+      while (j < end && source[j] !== '#' && source[j] !== '"' && source[j] !== "'") {
+        chunk += source[j]
+        j += 1
+      }
+      result += escapeHtml(chunk)
+      i = j
+    }
+  }
+  return result
+}
+
+function highlightCStyle(source: string): string {
+  let result = ''
+  let i = 0
+  while (i < source.length) {
+    // Block komentārs /* ... */
+    if (source[i] === '/' && source[i + 1] === '*') {
+      const close = source.indexOf('*/', i + 2)
+      const end = close === -1 ? source.length : close + 2
+      result += `<span class="ex-code-comment">${escapeHtml(source.slice(i, end))}</span>`
+      i = end
+      continue
+    }
+    // Line komentārs // ... (neuzskata, ja tas ir iekšā stringā — vienkāršots)
+    if (source[i] === '/' && source[i + 1] === '/') {
+      const newline = source.indexOf('\n', i)
+      const end = newline === -1 ? source.length : newline
+      result += `<span class="ex-code-comment">${escapeHtml(source.slice(i, end))}</span>`
+      i = end
+      continue
+    }
+    // String literāls "..."
+    if (source[i] === '"' || source[i] === "'") {
+      const quote = source[i]
+      let end = i + 1
+      while (end < source.length && source[end] !== quote) {
+        if (source[end] === '\\') end += 1
+        end += 1
+      }
+      end = Math.min(end + 1, source.length)
+      result += escapeHtml(source.slice(i, end))
+      i = end
+      continue
+    }
+    result += escapeHtml(source[i])
+    i += 1
+  }
+  return result
 }
 
 const samplePairs = computed<SamplePair[]>(() => {
@@ -263,18 +378,29 @@ const samplePairs = computed<SamplePair[]>(() => {
     </div>
 
     <template v-else-if="exercise">
-      <article class="content-panel card border-primary-subtle mb-3">
+      <article
+        class="content-panel card border-primary-subtle mb-3"
+        :class="{ 'theory-list-item--done': isSolvedNow }"
+      >
         <div class="card-body p-3 p-lg-4">
-          <div class="ex-detail-header">
-            <div class="ex-detail-title-row">
-              <h1 class="section-heading mb-0">{{ exercise.title }}</h1>
-              <span class="ex-diff-badge" :class="diffClass(exercise.difficulty)">
-                {{ exercise.difficulty }}
-              </span>
-              <span class="ex-language-chip">Ieteikts: {{ languageLabel(exercise.languageCode, exercise.languageVersion) }}</span>
-            </div>
-            <div v-if="isSolvedNow" class="ex-solved-banner">
-              <span class="ex-solved-check">✓</span> Izpildīts
+          <div class="theory-header exercises-header">
+            <span class="page-title-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+            </span>
+            <div class="theory-heading-copy">
+              <h1 class="section-heading mb-1">
+                <span v-if="isSolvedNow" class="ex-solved-mark me-2" aria-label="Izpildīts">✓</span>
+                {{ exercise.title }}
+              </h1>
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <span class="theory-difficulty" :class="diffClass(exercise.difficulty)">
+                  {{ diffLabel(exercise.difficulty) }}
+                </span>
+                <span class="ex-language-chip">Ieteikts: {{ languageLabel(exercise.languageCode, exercise.languageVersion) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -326,19 +452,27 @@ const samplePairs = computed<SamplePair[]>(() => {
               <span v-for="line in codeLineNumbers" :key="line" class="ex-code-editor-line">{{ line }}</span>
             </div>
 
-            <textarea
-              ref="codeEditorRef"
-              v-model="code"
-              class="ex-code-editor"
-              wrap="off"
-              :placeholder="`# Raksti savu ${editorLanguageLabel()} kodu šeit...`"
-              spellcheck="false"
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              @input="syncCodeEditorScroll"
-              @scroll="syncCodeEditorScroll"
-            ></textarea>
+            <div class="ex-code-editor-area">
+              <pre
+                ref="codeHighlightRef"
+                class="ex-code-editor-highlight"
+                aria-hidden="true"
+                v-html="highlightedCode"
+              ></pre>
+              <textarea
+                ref="codeEditorRef"
+                v-model="code"
+                class="ex-code-editor ex-code-editor--transparent"
+                wrap="off"
+                :placeholder="`# Raksti savu ${editorLanguageLabel()} kodu šeit...`"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                @input="syncCodeEditorScroll"
+                @scroll="syncCodeEditorScroll"
+              ></textarea>
+            </div>
           </div>
 
           <div v-if="submitError" class="text-danger mt-2 small">{{ submitError }}</div>
@@ -400,7 +534,50 @@ const samplePairs = computed<SamplePair[]>(() => {
           </div>
 
           <div v-if="result.errorMessage" class="ex-error-box mb-3">
-            {{ result.errorMessage }}
+            <strong>Kompilācijas/izpildes kļūda:</strong>
+            <pre class="ex-error-detail">{{ result.errorMessage }}</pre>
+          </div>
+
+          <div v-if="result.testResults?.length" class="ex-test-list">
+            <h3 class="ex-test-list__heading">Testu detaļas</h3>
+            <article
+              v-for="(tc, idx) in result.testResults"
+              :key="idx"
+              class="ex-test-case"
+              :class="{ 'ex-test-case--passed': tc.passed, 'ex-test-case--failed': !tc.passed }"
+            >
+              <div class="ex-test-case__head">
+                <span class="ex-test-case__index">Tests {{ tc.orderIndex + 1 }}</span>
+                <span class="ex-test-case__status" :class="tc.passed ? 'is-pass' : 'is-fail'">
+                  {{ tc.passed ? '✓ Izpildīts' : '✗ Neizpildīts' }}
+                </span>
+                <span v-if="tc.isHidden" class="ex-test-case__hidden">Slēpts</span>
+              </div>
+
+              <div v-if="!tc.passed && !tc.isHidden" class="ex-test-case__body">
+                <div v-if="tc.errorMessage" class="ex-test-case__error">
+                  <span class="ex-test-case__label">Kļūda</span>
+                  <pre class="ex-test-case__pre">{{ tc.errorMessage }}</pre>
+                </div>
+
+                <div class="ex-test-case__diff">
+                  <div class="ex-test-case__col">
+                    <span class="ex-test-case__label">Paredzamais izvads</span>
+                    <pre class="ex-test-case__pre ex-test-case__pre--expected">{{ tc.expectedOutput || '(tukšs)' }}</pre>
+                  </div>
+                  <div class="ex-test-case__col">
+                    <span class="ex-test-case__label">Tavs izvads</span>
+                    <pre class="ex-test-case__pre ex-test-case__pre--actual">{{ tc.actualOutput || '(tukšs)' }}</pre>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="!tc.passed && tc.isHidden" class="ex-test-case__body">
+                <p class="ex-test-case__hidden-msg mb-0">
+                  Šis tests ir slēpts, tāpēc tā detaļas nav redzamas. Pārbaudi savu kodu uz citiem ievades gadījumiem.
+                </p>
+              </div>
+            </article>
           </div>
         </div>
       </article>

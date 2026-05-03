@@ -17,6 +17,17 @@ public class DockerCodeRunnerService
 {
     public static readonly TimeSpan ExecutionTimeout = TimeSpan.FromSeconds(5);
 
+    private readonly string? _dockerHost;
+
+    public DockerCodeRunnerService(IConfiguration configuration)
+    {
+        // Lasa Docker:Host no appsettings vai vides:
+        //   ssh://riddle@server.lat   — caur SSH (ieteicams attālinātam serverim)
+        //   tcp://server.lat:2375     — TCP (tikai LAN / aiz VPN)
+        //   tukšs                     — lokālais Docker socket / Windows pipe
+        _dockerHost = configuration["Docker:Host"];
+    }
+
     // Wraps user code so that sys.stdin is pre-loaded with the test input.
     // JSON serialization produces a Python-compatible string literal for any input content.
     private static string BuildPythonScript(string userCode, string testInput)
@@ -103,6 +114,13 @@ public class DockerCodeRunnerService
         startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
         startInfo.Environment["PYTHONUTF8"] = "1";
         startInfo.Environment["LANG"] = "C.UTF-8";
+
+        // Ja konfigurēts Docker:Host (piem., ssh://user@server), nodod to docker CLI,
+        // lai komandas tiek izpildītas attālinātajā Docker daemonā.
+        if (!string.IsNullOrWhiteSpace(_dockerHost))
+        {
+            startInfo.Environment["DOCKER_HOST"] = _dockerHost;
+        }
 
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--rm");

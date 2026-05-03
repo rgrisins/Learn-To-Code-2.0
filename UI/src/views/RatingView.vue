@@ -132,11 +132,23 @@ function formatAverage(values: number[]) {
     <header class="rating-hero content-panel card border-primary-subtle">
       <div class="card-body p-3 p-lg-4 p-xl-5">
         <div class="rating-hero__content">
-          <div>
-            <h1 class="section-heading mb-3">Reitings</h1>
-            <p class="rating-lead mb-0">
-              Salīdzini lietotāju progresu atsevišķi no pārstāvniecību kopējās statistikas.
-            </p>
+          <div class="page-title-with-icon">
+            <span class="page-title-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                <path d="M4 22h16" />
+                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                <path d="M18 2H6v7a6 6 0 0 0 12 0V2z" />
+              </svg>
+            </span>
+            <div>
+              <h1 class="section-heading mb-3">Reitings</h1>
+              <p class="rating-lead mb-0">
+                Salīdzini lietotāju progresu atsevišķi no pārstāvniecību kopējās statistikas.
+              </p>
+            </div>
           </div>
 
           <div class="rating-summary" aria-label="Reitinga kopsavilkums">

@@ -185,12 +185,22 @@ function formatDate(value: string) {
     <header class="content-panel card border-primary-subtle">
       <div class="card-body p-3 p-lg-4 p-xl-5">
         <div class="representations-hero">
-          <div>
-            <p class="section-kicker mb-2">Pārstāvniecības</p>
-            <h1 class="section-heading mb-2">Tavas grupas un to progress</h1>
-            <p class="representations-lead mb-0">
-              Izveido komandu, pievienojies esošai pārstāvniecībai un seko kopējam progresam vienā vietā.
-            </p>
+          <div class="page-title-with-icon">
+            <span class="page-title-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </span>
+            <div>
+              <p class="section-kicker mb-2">Pārstāvniecības</p>
+              <h1 class="section-heading mb-2">Tavas grupas un to progress</h1>
+              <p class="representations-lead mb-0">
+                Izveido komandu, pievienojies esošai pārstāvniecībai un seko kopējam progresam vienā vietā.
+              </p>
+            </div>
           </div>
           <div class="representations-summary">
             <div>

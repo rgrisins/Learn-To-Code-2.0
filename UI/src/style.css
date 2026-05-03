@@ -1163,13 +1163,18 @@ input[type="number"]::-webkit-outer-spin-button:active {
   align-items: center;
 }
 
+.exercises-header > .theory-language-badge,
+.exercises-header > .exercises-header__icon,
+.exercises-header > .page-title-icon,
+.exercises-header > .theory-heading-copy,
 .exercises-header > .theory-header__actions,
 .section-page-header > .theory-header__actions {
-  align-self: center;
+  align-self: center !important;
 }
 
 .exercises-header__icon,
-.section-page-header__icon {
+.section-page-header__icon,
+.page-title-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1184,13 +1189,190 @@ input[type="number"]::-webkit-outer-spin-button:active {
   box-shadow: 0 12px 26px rgba(2, 6, 23, 0.32);
 }
 
+/* Sadaļas virsraksta + ikonas izkārtojums (Reitings, Iesniegumi, Pārstāvniecības) */
+.page-title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.page-title-with-icon > div {
+  min-width: 0;
+}
+
 .exercises-completion {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-end;
+  justify-content: center;
+  align-self: center;
   gap: 0.2rem;
   min-width: 9rem;
+}
+
+/* ─── Uzdevumu rezultāta testi ──────────────────────────────────── */
+
+.ex-test-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.ex-test-list__heading {
+  margin: 0 0 0.4rem;
+  color: rgba(147, 197, 253, 0.85);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ex-test-case {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 0.65rem;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.ex-test-case--passed {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(20, 83, 45, 0.18);
+}
+
+.ex-test-case--failed {
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+.ex-test-case__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ex-test-case__head .ex-test-case__status {
+  margin-left: auto;
+}
+
+.ex-test-case__head .ex-test-case__hidden {
+  margin-left: 0.5rem;
+}
+
+.ex-test-case__index {
+  color: var(--title);
+  font-weight: 800;
+}
+
+.ex-test-case__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ex-test-case__status.is-pass {
+  background: rgba(34, 197, 94, 0.16);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #bbf7d0;
+}
+
+.ex-test-case__status.is-fail {
+  background: rgba(248, 113, 113, 0.18);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.ex-test-case__hidden {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.78);
+}
+
+.ex-test-case__body {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ex-test-case__diff {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .ex-test-case__diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ex-test-case__col,
+.ex-test-case__error {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ex-test-case__label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(147, 197, 253, 0.72);
+}
+
+.ex-test-case__pre {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  border-radius: 0.45rem;
+  background: rgba(8, 14, 26, 0.7);
+  color: var(--title);
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.ex-test-case__pre--expected {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(20, 83, 45, 0.14);
+}
+
+.ex-test-case__pre--actual {
+  border-color: rgba(248, 113, 113, 0.36);
+  background: rgba(127, 29, 29, 0.14);
+}
+
+.ex-test-case__hidden-msg {
+  color: rgba(203, 213, 225, 0.72);
+  font-style: italic;
+  font-size: 0.88rem;
+}
+
+.ex-error-detail {
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.45rem;
+  background: rgba(8, 14, 26, 0.65);
+  color: #fecaca;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 14rem;
+  overflow: auto;
 }
 
 .exercises-completion__count {
@@ -1725,6 +1907,18 @@ input[type="number"]::-webkit-outer-spin-button:active {
   align-items: start;
   gap: 0.25rem 1rem;
   width: 100%;
+}
+
+/* Ja heading lieto page-title-icon (piem., teorijas valodu sarakstā,
+   kur nav logo), tad nocentrē saturu vertikāli */
+.theory-header:has(.page-title-icon) {
+  align-items: center;
+}
+
+.theory-header:has(.page-title-icon) > .page-title-icon,
+.theory-header:has(.page-title-icon) > .theory-heading-copy,
+.theory-header:has(.page-title-icon) > .theory-header__actions {
+  align-self: center !important;
 }
 
 .theory-header > .theory-language-badge {
@@ -4741,6 +4935,55 @@ input[type="number"]::-webkit-outer-spin-button:active {
 
 .ex-code-editor::placeholder {
   color: rgba(226, 232, 240, 0.52);
+}
+
+/* Syntax-highlighted overlay zem textareas */
+.ex-code-editor-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 19rem;
+  display: flex;
+}
+
+.ex-code-editor-highlight {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0.95rem 1rem;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+  pointer-events: none;
+  color: #f8fafc;
+  background: transparent;
+  border: 0;
+  z-index: 1;
+}
+
+.ex-code-editor-area .ex-code-editor {
+  position: relative;
+  z-index: 2;
+}
+
+.ex-code-editor--transparent {
+  color: transparent !important;
+  caret-color: #99f6e4;
+  background: transparent;
+}
+
+.ex-code-editor--transparent::selection {
+  /* Lai marķēšana paliek redzama virs syntax-highlighted teksta */
+  background: rgba(96, 165, 250, 0.4);
+  color: transparent;
+}
+
+.ex-code-comment {
+  color: #4ade80; /* zaļš — kā teorijas progresa beigās */
+  font-style: italic;
 }
 
 .ex-code-editor-hint {
