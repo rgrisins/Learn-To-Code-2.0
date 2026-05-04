@@ -424,9 +424,19 @@ public class ExercisesController : ControllerBase
                 testCase.ExpectedOutput))
             .ToList();
 
-        foreach (var validationCase in cases)
+        // Visus testus laižam vienā konteinerā, lai amortizētu startēšanas
+        // izmaksas. Pirmā kļūda tiek atgriezta kā validācijas ziņojums.
+        var runs = await _runner.RunBatchAsync(
+            solutionCode,
+            cases.Select(c => c.Input).ToList(),
+            solutionLanguage,
+            onResult: null,
+            ct);
+
+        for (var i = 0; i < cases.Count; i++)
         {
-            var run = await _runner.RunAsync(solutionCode, validationCase.Input, solutionLanguage, ct);
+            var validationCase = cases[i];
+            var run = runs[i];
 
             if (run.TimedOut)
                 return $"{validationCase.Label}: autora risinājums pārsniedza izpildes laiku ({DockerCodeRunnerService.ExecutionTimeout.TotalSeconds:0} s).";
@@ -515,10 +525,20 @@ public class ExercisesController : ControllerBase
 
         var testResults = new List<TestCaseResultDto>();
         var passed = 0;
+        var sawFailure = false;
 
-        foreach (var tc in testCases)
+        // Visi testi tiek izpildīti vienā Docker konteinerā (RunBatchAsync) — tas
+        // amortizē konteinera startēšanas izmaksas. Lai saglabātu sākotnējo
+        // "stop at first failure" UX, ignorējam progresa atskaites pēc pirmās
+        // neveiksmes (kods jau ir izpildīts, vienkārši nesaglabājam).
+        var inputs = testCases.Select(tc => tc.Input).ToList();
+
+        await _runner.RunBatchAsync(code, inputs, language, async (idx, run, innerCt) =>
         {
-            var run = await _runner.RunAsync(code, tc.Input, language, ct);
+            if (sawFailure) return;
+            if (idx < 0 || idx >= testCases.Count) return;
+
+            var tc = testCases[idx];
             TestCaseResultDto testResult;
 
             if (run.TimedOut)
@@ -534,12 +554,9 @@ public class ExercisesController : ControllerBase
                     tc.IsHidden ? null : tc.ExpectedOutput,
                     timeoutMessage);
                 testResults.Add(testResult);
-                await SaveSubmissionProgressAsync(submission, passed, testCases.Count, testResults, ct);
-                await ReportSubmissionProgressAsync(reportProgress, submission, testResults.Count, testCases.Count, passed, testResult, ct);
-                break;
+                sawFailure = true;
             }
-
-            if (run.ExitCode != 0)
+            else if (run.ExitCode != 0)
             {
                 var stderr = run.Stderr.Length > 600 ? run.Stderr[..600] : run.Stderr;
                 testResult = new TestCaseResultDto(
@@ -550,33 +567,30 @@ public class ExercisesController : ControllerBase
                     tc.IsHidden ? null : tc.ExpectedOutput,
                     stderr);
                 testResults.Add(testResult);
-                await SaveSubmissionProgressAsync(submission, passed, testCases.Count, testResults, ct);
-                await ReportSubmissionProgressAsync(reportProgress, submission, testResults.Count, testCases.Count, passed, testResult, ct);
-                break;
+                sawFailure = true;
             }
-
-            var actual = run.Stdout.TrimEnd();
-            var expected = tc.ExpectedOutput.TrimEnd();
-            var ok = actual == expected;
-            if (ok) passed++;
-
-            testResult = new TestCaseResultDto(
-                tc.OrderIndex,
-                tc.IsHidden,
-                ok,
-                tc.IsHidden ? null : actual,
-                tc.IsHidden ? null : expected,
-                null
-            );
-            testResults.Add(testResult);
-            await SaveSubmissionProgressAsync(submission, passed, testCases.Count, testResults, ct);
-            await ReportSubmissionProgressAsync(reportProgress, submission, testResults.Count, testCases.Count, passed, testResult, ct);
-
-            if (!ok)
+            else
             {
-                break;
+                var actual = run.Stdout.TrimEnd();
+                var expected = tc.ExpectedOutput.TrimEnd();
+                var ok = actual == expected;
+                if (ok) passed++;
+                else sawFailure = true;
+
+                testResult = new TestCaseResultDto(
+                    tc.OrderIndex,
+                    tc.IsHidden,
+                    ok,
+                    tc.IsHidden ? null : actual,
+                    tc.IsHidden ? null : expected,
+                    null
+                );
+                testResults.Add(testResult);
             }
-        }
+
+            await SaveSubmissionProgressAsync(submission, passed, testCases.Count, testResults, innerCt);
+            await ReportSubmissionProgressAsync(reportProgress, submission, testResults.Count, testCases.Count, passed, testResult, innerCt);
+        }, ct);
 
         if (submission.Status == SubmissionStatus.Running)
             submission.Status = passed == testCases.Count ? SubmissionStatus.Passed : SubmissionStatus.Failed;
