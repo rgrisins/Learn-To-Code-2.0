@@ -146,6 +146,16 @@ public class ExercisesController : ControllerBase
         var userId = GetCurrentUserId();
         if (userId is null) return Unauthorized();
 
+        // Ja uzdevums jau atrisināts, atkārtota iesniegšana nav atļauta.
+        var alreadySolved = await _db.ExerciseSubmissions
+            .AnyAsync(s => s.ExerciseId == exercise.Id && s.UserId == userId.Value
+                           && s.Status == SubmissionStatus.Passed, ct);
+
+        if (alreadySolved)
+        {
+            return Conflict(new { message = "Šis uzdevums jau ir atrisināts. Atkārtota iesniegšana nav atļauta." });
+        }
+
         var result = await ExecuteSubmissionAsync(exercise, userId.Value, request.Code, language, null, ct);
 
         return Ok(result);
@@ -173,6 +183,17 @@ public class ExercisesController : ControllerBase
         if (userId is null)
         {
             await WriteJsonErrorAsync(StatusCodes.Status401Unauthorized, "Lietotājs nav autorizēts.", ct);
+            return;
+        }
+
+        var alreadySolved = await _db.ExerciseSubmissions
+            .AnyAsync(s => s.ExerciseId == exercise.Id && s.UserId == userId.Value
+                           && s.Status == SubmissionStatus.Passed, ct);
+
+        if (alreadySolved)
+        {
+            await WriteJsonErrorAsync(StatusCodes.Status409Conflict,
+                "Šis uzdevums jau ir atrisināts. Atkārtota iesniegšana nav atļauta.", ct);
             return;
         }
 

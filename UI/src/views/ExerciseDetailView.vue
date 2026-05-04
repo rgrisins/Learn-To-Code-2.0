@@ -227,6 +227,10 @@ const resultProgressPercent = computed(() => {
   return Math.round((result.value.testsPassed / result.value.testsTotal) * 100)
 })
 
+const failedTestResults = computed(() => {
+  return result.value?.testResults?.filter((tc) => !tc.passed) ?? []
+})
+
 const codeLineNumbers = computed(() => {
   const lineCount = Math.max(1, code.value.split(/\r\n|\r|\n/).length)
   return Array.from({ length: lineCount }, (_, index) => index + 1)
@@ -391,16 +395,16 @@ const samplePairs = computed<SamplePair[]>(() => {
               </svg>
             </span>
             <div class="theory-heading-copy">
-              <h1 class="section-heading mb-1">
-                <span v-if="isSolvedNow" class="ex-solved-mark me-2" aria-label="Izpildīts">✓</span>
-                {{ exercise.title }}
+              <h1 class="section-heading section-heading--with-mark mb-0">
+                <span v-if="isSolvedNow" class="ex-solved-mark" aria-label="Izpildīts">✓</span>
+                <span class="section-heading__text">{{ exercise.title }}</span>
               </h1>
-              <div class="d-flex flex-wrap gap-2 align-items-center">
-                <span class="theory-difficulty" :class="diffClass(exercise.difficulty)">
-                  {{ diffLabel(exercise.difficulty) }}
-                </span>
-                <span class="ex-language-chip">Ieteikts: {{ languageLabel(exercise.languageCode, exercise.languageVersion) }}</span>
-              </div>
+            </div>
+            <div class="exercises-header__badges">
+              <span class="theory-difficulty" :class="diffClass(exercise.difficulty)">
+                {{ diffLabel(exercise.difficulty) }}
+              </span>
+              <span class="ex-language-chip">Ieteikts: {{ languageLabel(exercise.languageCode, exercise.languageVersion) }}</span>
             </div>
           </div>
         </div>
@@ -433,13 +437,11 @@ const samplePairs = computed<SamplePair[]>(() => {
       <article class="content-panel card border-primary-subtle mb-3">
         <div class="card-body p-3 p-lg-4">
           <div class="ex-editor-header mb-3">
-            <div class="ex-editor-title">
-              <h2 class="section-heading mb-0">Risinājums</h2>
-              <label class="ex-language-select-label" for="exerciseLanguage">Programmēšanas valoda un versija</label>
-            </div>
+            <h2 class="section-heading section-heading--caps mb-0">Risinājums</h2>
             <select
               id="exerciseLanguage"
               :value="language"
+              aria-label="Programmēšanas valoda un versija"
               class="ex-lang-select auth-input"
               @change="handleLanguageChange"
             >
@@ -479,6 +481,11 @@ const samplePairs = computed<SamplePair[]>(() => {
 
           <div v-if="!isAuthenticated" class="ex-auth-notice mt-3">
             <RouterLink to="/login">Ielogojies</RouterLink>, lai iesniegtu risinājumu.
+          </div>
+
+          <div v-else-if="isSolvedNow" class="alert alert-success mt-3 mb-0 ex-already-solved">
+            <strong>✓ Šis uzdevums jau ir atrisināts.</strong>
+            Atkārtota iesniegšana nav atļauta.
           </div>
 
           <button
@@ -538,23 +545,20 @@ const samplePairs = computed<SamplePair[]>(() => {
             <pre class="ex-error-detail">{{ result.errorMessage }}</pre>
           </div>
 
-          <div v-if="result.testResults?.length" class="ex-test-list">
-            <h3 class="ex-test-list__heading">Testu detaļas</h3>
+          <div v-if="failedTestResults.length" class="ex-test-list">
+            <h3 class="ex-test-list__heading">Neizpildītie testi</h3>
             <article
-              v-for="(tc, idx) in result.testResults"
+              v-for="(tc, idx) in failedTestResults"
               :key="idx"
-              class="ex-test-case"
-              :class="{ 'ex-test-case--passed': tc.passed, 'ex-test-case--failed': !tc.passed }"
+              class="ex-test-case ex-test-case--failed"
             >
               <div class="ex-test-case__head">
                 <span class="ex-test-case__index">Tests {{ tc.orderIndex + 1 }}</span>
-                <span class="ex-test-case__status" :class="tc.passed ? 'is-pass' : 'is-fail'">
-                  {{ tc.passed ? '✓ Izpildīts' : '✗ Neizpildīts' }}
-                </span>
+                <span class="ex-test-case__status is-fail">✗ Neizpildīts</span>
                 <span v-if="tc.isHidden" class="ex-test-case__hidden">Slēpts</span>
               </div>
 
-              <div v-if="!tc.passed && !tc.isHidden" class="ex-test-case__body">
+              <div v-if="!tc.isHidden" class="ex-test-case__body">
                 <div v-if="tc.errorMessage" class="ex-test-case__error">
                   <span class="ex-test-case__label">Kļūda</span>
                   <pre class="ex-test-case__pre">{{ tc.errorMessage }}</pre>
@@ -572,7 +576,7 @@ const samplePairs = computed<SamplePair[]>(() => {
                 </div>
               </div>
 
-              <div v-else-if="!tc.passed && tc.isHidden" class="ex-test-case__body">
+              <div v-else class="ex-test-case__body">
                 <p class="ex-test-case__hidden-msg mb-0">
                   Šis tests ir slēpts, tāpēc tā detaļas nav redzamas. Pārbaudi savu kodu uz citiem ievades gadījumiem.
                 </p>

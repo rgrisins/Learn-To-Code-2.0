@@ -382,7 +382,14 @@ async function confirmLogout() {
         </div>
         <div class="profile-stat profile-stat--wide-2">
           <span class="profile-stat__label">Pārstāvniecība</span>
-          <strong>{{ user.representation || 'Nav norādīta' }}</strong>
+          <strong v-if="!user.representation">Nav norādīta</strong>
+          <router-link
+            v-else
+            class="profile-stat-link"
+            :to="{ name: 'representation-detail', params: { name: user.representation } }"
+          >
+            {{ user.representation }}
+          </router-link>
         </div>
         <div class="profile-stat-actions">
           <button class="btn btn-outline-light btn-sm" type="button" @click="toggleProfileStats">

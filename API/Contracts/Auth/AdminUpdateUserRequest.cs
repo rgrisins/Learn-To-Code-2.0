@@ -10,8 +10,6 @@ public class AdminUpdateUserRequest
 
     public DateOnly? BirthDate { get; set; }
 
-    public string? Representation { get; set; }
-
     public string Role { get; set; } = string.Empty;
 
     public int Rating { get; set; }

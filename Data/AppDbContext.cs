@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
 
     public DbSet<RepresentationMembership> RepresentationMemberships { get; set; }
 
+    public DbSet<RepresentationJoinRequest> RepresentationJoinRequests { get; set; }
+
     public DbSet<TheoryLanguage> TheoryLanguages { get; set; }
 
     public DbSet<TheoryTopic> TheoryTopics { get; set; }
@@ -89,6 +91,7 @@ public class AppDbContext : DbContext
             entity.Property(representation => representation.Name).HasMaxLength(160).IsRequired();
             entity.Property(representation => representation.NormalizedName).HasMaxLength(160).IsRequired();
             entity.Property(representation => representation.Description).HasMaxLength(800);
+            entity.Property(representation => representation.IsPublic).HasDefaultValue(true);
 
             entity.HasOne(representation => representation.CreatedByUser)
                 .WithMany()
@@ -111,6 +114,29 @@ public class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(membership => membership.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RepresentationJoinRequest>(entity =>
+        {
+            entity.HasIndex(request => new { request.RepresentationId, request.Status });
+            entity.HasIndex(request => request.UserId);
+            entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(request => request.Message).HasMaxLength(500);
+
+            entity.HasOne(request => request.Representation)
+                .WithMany(representation => representation.JoinRequests)
+                .HasForeignKey(request => request.RepresentationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(request => request.User)
+                .WithMany()
+                .HasForeignKey(request => request.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(request => request.ResolvedByUser)
+                .WithMany()
+                .HasForeignKey(request => request.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<TheoryLanguage>(entity =>

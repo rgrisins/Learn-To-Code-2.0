@@ -10,6 +10,8 @@ public class Representation
 
     public string? Description { get; set; }
 
+    public bool IsPublic { get; set; } = true;
+
     public int? CreatedByUserId { get; set; }
 
     public User? CreatedByUser { get; set; }
@@ -17,4 +19,6 @@ public class Representation
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public ICollection<RepresentationMembership> Memberships { get; set; } = [];
+
+    public ICollection<RepresentationJoinRequest> JoinRequests { get; set; } = [];
 }

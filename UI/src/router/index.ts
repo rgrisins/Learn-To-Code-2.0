@@ -16,6 +16,7 @@ import ExercisesView from '../views/ExercisesView.vue'
 import ExerciseDetailView from '../views/ExerciseDetailView.vue'
 import SubmissionsView from '../views/SubmissionsView.vue'
 import RepresentationsView from '../views/RepresentationsView.vue'
+import RepresentationDetailView from '../views/RepresentationDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -85,6 +86,12 @@ const router = createRouter({
       path: '/representations',
       name: 'representations',
       component: RepresentationsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/representations/:name',
+      name: 'representation-detail',
+      component: RepresentationDetailView,
       meta: { requiresAuth: true },
     },
     {

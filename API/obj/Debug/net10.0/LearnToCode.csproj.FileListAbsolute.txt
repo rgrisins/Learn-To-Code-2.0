@@ -160,3 +160,11 @@ C:\Users\rgris\source\repos\LearnToCode\.build-check\api\LearnToCode.deps.json
 C:\Users\rgris\source\repos\LearnToCode\.build-check\api\LearnToCode.runtimeconfig.json
 C:\Users\rgris\source\repos\LearnToCode\.build-check\api\LearnToCode.dll
 C:\Users\rgris\source\repos\LearnToCode\.build-check\api\LearnToCode.pdb
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\appsettings.Development.json
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\appsettings.json
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.staticwebassets.endpoints.json
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.exe
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.deps.json
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.runtimeconfig.json
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.dll
+C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.pdb

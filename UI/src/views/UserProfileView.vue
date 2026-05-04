@@ -147,7 +147,14 @@ function formatDate(value: string) {
           </div>
           <div class="profile-stat profile-stat--wide-2">
             <span class="profile-stat__label">Pārstāvniecība</span>
-            <strong>{{ profile.representation || 'Nav norādīta' }}</strong>
+            <strong v-if="!profile.representation">Nav norādīta</strong>
+            <router-link
+              v-else
+              class="profile-stat-link"
+              :to="{ name: 'representation-detail', params: { name: profile.representation } }"
+            >
+              {{ profile.representation }}
+            </router-link>
           </div>
         </div>
 

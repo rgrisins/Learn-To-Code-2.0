@@ -140,10 +140,13 @@ public class ProfileController : ControllerBase
             return NotFound(new { message = "Lietotājs nav atrasts." });
         }
 
+        // Vēsturiski daži ieraksti DB var saturēt jaukto reģistru lietotājvārdus,
+        // tāpēc salīdzinām caur LOWER() (kas izmanto migrate_users.sql izveidoto
+        // funkcionālo indeksu) un nepaļaujamies uz case-sensitive ==.
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                item => item.Username == normalized && item.Role != UserRole.Administrators,
+                item => item.Username != null && item.Username.ToLower() == normalized,
                 cancellationToken);
 
         if (user is null)

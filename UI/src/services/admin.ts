@@ -6,7 +6,6 @@ export interface AdminUpdateUserRequest {
   firstName: string
   lastName: string
   birthDate?: string | null
-  representation?: string | null
   role: string
   rating: number
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { authState } from '../services/auth'
 import type { AuthUser } from '../services/auth'
 import { deleteAdminUser, getAdminUsers, updateAdminUser } from '../services/admin'
@@ -24,13 +24,20 @@ import {
   type PendingExercise,
   type PendingExerciseStatusFilter,
 } from '../services/exercises'
+import {
+  deleteRepresentation,
+  getRepresentations,
+  updateRepresentation,
+  type Representation,
+} from '../services/representations'
 import MarkdownIt from 'markdown-it'
 
 const markdownRenderer = new MarkdownIt({ html: false, linkify: true, breaks: false })
 
 const roles = ['Audzeknis', 'Pedagogs', 'Administrators']
+const ADMIN_PAGE_SIZE = 5
 
-type AdminSection = 'users' | 'editRequests' | 'exerciseRequests' | 'roleRequests'
+type AdminSection = 'users' | 'representations' | 'editRequests' | 'exerciseRequests' | 'roleRequests'
 type SortDirection = 'asc' | 'desc'
 type UserSortKey = 'user' | 'role' | 'representation' | 'rating' | 'createdAt'
 type EditRequestSortKey = 'user' | 'type' | 'target' | 'status' | 'createdAt'
@@ -39,6 +46,13 @@ type RoleRequestSortKey = 'user' | 'requestedRole' | 'reason' | 'status' | 'crea
 type SortState<TKey extends string> = {
   key: TKey
   direction: SortDirection
+}
+
+type RequestStatusStats = {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
 }
 
 type TheoryEditRequest = {
@@ -65,20 +79,18 @@ type TheoryEditRequest = {
 
 const activeSection = ref<AdminSection>('users')
 const users = ref<AuthUser[]>([])
+const representations = ref<Representation[]>([])
 const roleRequests = ref<RoleRequest[]>([])
 const topicRequests = ref<TheoryTopicRequest[]>([])
 const contentRequests = ref<TheoryContentRequest[]>([])
 const quizRequests = ref<TheoryQuizRequest[]>([])
-const topicRequestStatusFilter = ref('Pending')
-const contentRequestStatusFilter = ref('Pending')
-const quizRequestStatusFilter = ref('Pending')
-const theoryEditStatusFilter = ref('Pending')
+const theoryEditStatusFilter = ref('')
 const isLoadingTopicRequests = ref(false)
 const isLoadingContentRequests = ref(false)
 const isLoadingQuizRequests = ref(false)
 const isReviewingRequest = ref(false)
 const pendingExercises = ref<PendingExercise[]>([])
-const pendingExerciseStatusFilter = ref<PendingExerciseStatusFilter>('Pending')
+const pendingExerciseStatusFilter = ref<PendingExerciseStatusFilter>('')
 const isLoadingPendingExercises = ref(false)
 const isReviewingPendingExercise = ref(false)
 const selectedPendingExercise = ref<PendingExercise | null>(null)
@@ -91,15 +103,25 @@ const selectedQuizRequest = ref<TheoryQuizRequest | null>(null)
 const selectedEditRequest = ref<TheoryEditRequest | null>(null)
 const searchTerm = ref('')
 const roleFilter = ref('')
-const roleRequestStatusFilter = ref('Pending')
+const representationSearch = ref('')
+const representationVisibilityFilter = ref('')
+const roleRequestStatusFilter = ref('')
+const userPage = ref(1)
+const representationPage = ref(1)
+const editRequestPage = ref(1)
+const exerciseRequestPage = ref(1)
+const roleRequestPage = ref(1)
 const userSort = reactive<SortState<UserSortKey>>({ key: 'createdAt', direction: 'desc' })
 const editRequestSort = reactive<SortState<EditRequestSortKey>>({ key: 'createdAt', direction: 'desc' })
 const roleRequestSort = reactive<SortState<RoleRequestSortKey>>({ key: 'createdAt', direction: 'desc' })
 const adminError = ref('')
 const isLoadingUsers = ref(false)
+const isLoadingRepresentations = ref(false)
 const isLoadingRoleRequests = ref(false)
 const isSavingUser = ref(false)
 const isDeletingUser = ref(false)
+const isSavingRepresentation = ref(false)
+const isDeletingRepresentation = ref(false)
 const isReviewingRoleRequest = ref(false)
 const pendingTopicRequestCount = computed(() => topicRequests.value.filter((r) => r.status === 'Pending').length)
 const pendingContentRequestCount = computed(() => contentRequests.value.filter((r) => r.status === 'Pending').length)
@@ -135,6 +157,7 @@ const isLoadingTheoryEditRequests = computed(() =>
 const isReviewingEditRequest = computed(() => isReviewingRequest.value)
 
 const isRefreshing = computed(() => {
+  if (activeSection.value === 'representations') return isLoadingRepresentations.value
   if (activeSection.value === 'roleRequests') return isLoadingRoleRequests.value
   if (activeSection.value === 'editRequests') return isLoadingTheoryEditRequests.value
   if (activeSection.value === 'exerciseRequests') return isLoadingPendingExercises.value
@@ -142,7 +165,10 @@ const isRefreshing = computed(() => {
 })
 const isEditModalOpen = ref(false)
 const isDeleteModalOpen = ref(false)
+const isRepresentationEditModalOpen = ref(false)
+const isRepresentationDeleteModalOpen = ref(false)
 const selectedUser = ref<AuthUser | null>(null)
+const selectedRepresentation = ref<Representation | null>(null)
 const birthDatePickerOpen = ref(false)
 const calendarMonth = ref(new Date())
 const availableYears = computed(() => {
@@ -156,9 +182,14 @@ const editForm = reactive({
   firstName: '',
   lastName: '',
   birthDate: '',
-  representation: '',
   role: 'Audzeknis',
   rating: 1000,
+})
+
+const representationForm = reactive({
+  name: '',
+  description: '',
+  isPublic: true,
 })
 
 const editErrors = reactive({
@@ -167,6 +198,11 @@ const editErrors = reactive({
   lastName: '',
   birthDate: '',
   rating: '',
+})
+
+const representationErrors = reactive({
+  name: '',
+  description: '',
 })
 
 const filteredUsers = computed(() => {
@@ -188,20 +224,75 @@ const sortedFilteredUsers = computed(() =>
   sortItems(filteredUsers.value, userSort, (user, key) => getUserSortValue(user, key)),
 )
 
+const filteredRepresentations = computed(() => {
+  const query = representationSearch.value.trim().toLowerCase()
+  const visibility = representationVisibilityFilter.value
+  return representations.value
+    .filter((representation) => {
+      const matchesVisibility =
+        !visibility ||
+        (visibility === 'public' ? representation.isPublic : !representation.isPublic)
+      const matchesSearch =
+        !query ||
+        [representation.name, representation.description]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
+
+      return matchesVisibility && matchesSearch
+    })
+    .sort((first, second) => {
+      const ratingDifference = second.averageRating - first.averageRating
+      if (ratingDifference !== 0) return ratingDifference
+      return first.name.localeCompare(second.name, 'lv-LV')
+    })
+})
+
+const filteredTheoryEditRequests = computed(() =>
+  filterByStatus(theoryEditRequests.value, theoryEditStatusFilter.value),
+)
+
 const sortedTheoryEditRequests = computed(() =>
-  sortItems(theoryEditRequests.value, editRequestSort, (request, key) => getEditRequestSortValue(request, key)),
+  sortItems(filteredTheoryEditRequests.value, editRequestSort, (request, key) => getEditRequestSortValue(request, key)),
+)
+
+const filteredPendingExercises = computed(() =>
+  filterByStatus(pendingExercises.value, pendingExerciseStatusFilter.value),
+)
+
+const filteredRoleRequests = computed(() =>
+  filterByStatus(roleRequests.value, roleRequestStatusFilter.value),
 )
 
 const sortedRoleRequests = computed(() =>
-  sortItems(roleRequests.value, roleRequestSort, (request, key) => getRoleRequestSortValue(request, key)),
+  sortItems(filteredRoleRequests.value, roleRequestSort, (request, key) => getRoleRequestSortValue(request, key)),
 )
 
 const adminCount = computed(() => users.value.filter((user) => user.role === 'Administrators').length)
 const teacherCount = computed(() => users.value.filter((user) => user.role === 'Pedagogs').length)
 const studentCount = computed(() => users.value.filter((user) => user.role === 'Audzeknis').length)
+const publicRepresentationCount = computed(() => representations.value.filter((representation) => representation.isPublic).length)
+const privateRepresentationCount = computed(() => representations.value.filter((representation) => !representation.isPublic).length)
+const representationMemberCount = computed(() =>
+  representations.value.reduce((total, representation) => total + representation.memberCount, 0),
+)
 const pendingRoleRequestCount = computed(() =>
   roleRequests.value.filter((request) => request.status === 'Pending').length,
 )
+const theoryEditStatusStats = computed(() => getStatusStats(theoryEditRequests.value))
+const exerciseRequestStatusStats = computed(() => getStatusStats(pendingExercises.value))
+const roleRequestStatusStats = computed(() => getStatusStats(roleRequests.value))
+
+const userTotalPages = computed(() => totalPages(sortedFilteredUsers.value.length))
+const representationTotalPages = computed(() => totalPages(filteredRepresentations.value.length))
+const editRequestTotalPages = computed(() => totalPages(sortedTheoryEditRequests.value.length))
+const exerciseRequestTotalPages = computed(() => totalPages(filteredPendingExercises.value.length))
+const roleRequestTotalPages = computed(() => totalPages(sortedRoleRequests.value.length))
+
+const pagedUsers = computed(() => paginateItems(sortedFilteredUsers.value, userPage.value))
+const pagedRepresentations = computed(() => paginateItems(filteredRepresentations.value, representationPage.value))
+const pagedTheoryEditRequests = computed(() => paginateItems(sortedTheoryEditRequests.value, editRequestPage.value))
+const pagedPendingExercises = computed(() => paginateItems(filteredPendingExercises.value, exerciseRequestPage.value))
+const pagedRoleRequests = computed(() => paginateItems(sortedRoleRequests.value, roleRequestPage.value))
 
 const calendarTitle = computed(() =>
   new Intl.DateTimeFormat('lv-LV', { month: 'long', year: 'numeric' }).format(calendarMonth.value),
@@ -231,12 +322,34 @@ const calendarWeeks = computed(() => {
 
 onMounted(() => {
   void loadUsers()
+  void loadRepresentations()
   void loadRoleRequests()
   void loadTheoryEditRequests()
   void loadPendingExercises()
 })
 
+watch([searchTerm, roleFilter], () => {
+  userPage.value = 1
+})
+
+watch([representationSearch, representationVisibilityFilter], () => {
+  representationPage.value = 1
+})
+
+watch(theoryEditStatusFilter, () => {
+  editRequestPage.value = 1
+})
+
+watch(pendingExerciseStatusFilter, () => {
+  exerciseRequestPage.value = 1
+})
+
+watch(roleRequestStatusFilter, () => {
+  roleRequestPage.value = 1
+})
+
 async function refreshActiveSection() {
+  if (activeSection.value === 'representations') { await loadRepresentations(); return }
   if (activeSection.value === 'roleRequests') { await loadRoleRequests(); return }
   if (activeSection.value === 'editRequests') { await loadTheoryEditRequests(); return }
   if (activeSection.value === 'exerciseRequests') { await loadPendingExercises(); return }
@@ -247,7 +360,7 @@ async function loadPendingExercises() {
   adminError.value = ''
   isLoadingPendingExercises.value = true
   try {
-    pendingExercises.value = await getPendingExercises(pendingExerciseStatusFilter.value)
+    pendingExercises.value = await getPendingExercises('')
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet uzdevumu pieprasijumus.'
   } finally {
@@ -304,11 +417,117 @@ async function loadUsers() {
   }
 }
 
+async function loadRepresentations() {
+  adminError.value = ''
+  isLoadingRepresentations.value = true
+
+  try {
+    representations.value = await getRepresentations()
+  } catch (error) {
+    adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet parstavniecibas.'
+  } finally {
+    isLoadingRepresentations.value = false
+  }
+}
+
+function clearRepresentationErrors() {
+  representationErrors.name = ''
+  representationErrors.description = ''
+}
+
+function validateRepresentationForm() {
+  clearRepresentationErrors()
+
+  const name = representationForm.name.trim()
+  const description = representationForm.description.trim()
+
+  if (name.length < 3 || name.length > 160) {
+    representationErrors.name = 'Nosaukumam jābūt 3-160 rakstzīmes garam.'
+  }
+
+  if (description.length > 800) {
+    representationErrors.description = 'Apraksts nedrīkst pārsniegt 800 rakstzīmes.'
+  }
+
+  return !representationErrors.name && !representationErrors.description
+}
+
+function openRepresentationEditModal(representation: Representation) {
+  selectedRepresentation.value = representation
+  adminError.value = ''
+  clearRepresentationErrors()
+  representationForm.name = representation.name
+  representationForm.description = representation.description || ''
+  representationForm.isPublic = representation.isPublic
+  isRepresentationEditModalOpen.value = true
+}
+
+function closeRepresentationEditModal() {
+  isRepresentationEditModalOpen.value = false
+  selectedRepresentation.value = null
+}
+
+async function saveRepresentation() {
+  if (!selectedRepresentation.value || !validateRepresentationForm()) {
+    return
+  }
+
+  adminError.value = ''
+  isSavingRepresentation.value = true
+
+  try {
+    const updated = await updateRepresentation(selectedRepresentation.value.id, {
+      name: representationForm.name.trim(),
+      description: representationForm.description.trim() || null,
+      isPublic: representationForm.isPublic,
+    })
+    representations.value = representations.value.map((representation) =>
+      representation.id === updated.id ? updated : representation,
+    )
+    closeRepresentationEditModal()
+  } catch (error) {
+    adminError.value = error instanceof Error ? error.message : 'Neizdevās saglabāt pārstāvniecību.'
+  } finally {
+    isSavingRepresentation.value = false
+  }
+}
+
+function openRepresentationDeleteModal(representation: Representation) {
+  selectedRepresentation.value = representation
+  adminError.value = ''
+  isRepresentationDeleteModalOpen.value = true
+}
+
+function closeRepresentationDeleteModal() {
+  isRepresentationDeleteModalOpen.value = false
+  selectedRepresentation.value = null
+}
+
+async function confirmDeleteRepresentation() {
+  if (!selectedRepresentation.value) {
+    return
+  }
+
+  adminError.value = ''
+  isDeletingRepresentation.value = true
+
+  try {
+    await deleteRepresentation(selectedRepresentation.value.id)
+    representations.value = representations.value.filter((representation) => representation.id !== selectedRepresentation.value?.id)
+    representationPage.value = Math.min(representationPage.value, representationTotalPages.value)
+    closeRepresentationDeleteModal()
+  } catch (error) {
+    adminError.value = error instanceof Error ? error.message : 'Neizdevās dzēst pārstāvniecību.'
+  } finally {
+    isDeletingRepresentation.value = false
+  }
+}
+
 async function loadTopicRequests() {
   adminError.value = ''
   isLoadingTopicRequests.value = true
   try {
-    topicRequests.value = await getAdminTopicRequests(topicRequestStatusFilter.value || undefined)
+    topicRequests.value = await getAdminTopicRequests()
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet temu pieprasijumus.'
   } finally {
@@ -320,7 +539,7 @@ async function loadContentRequests() {
   adminError.value = ''
   isLoadingContentRequests.value = true
   try {
-    contentRequests.value = await getAdminContentRequests(contentRequestStatusFilter.value || undefined)
+    contentRequests.value = await getAdminContentRequests()
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet satura pieprasijumus.'
   } finally {
@@ -332,7 +551,7 @@ async function loadQuizRequests() {
   adminError.value = ''
   isLoadingQuizRequests.value = true
   try {
-    quizRequests.value = await getAdminQuizRequests(quizRequestStatusFilter.value || undefined)
+    quizRequests.value = await getAdminQuizRequests()
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet testu pieprasijumus.'
   } finally {
@@ -341,9 +560,6 @@ async function loadQuizRequests() {
 }
 
 async function loadTheoryEditRequests() {
-  topicRequestStatusFilter.value = theoryEditStatusFilter.value
-  contentRequestStatusFilter.value = theoryEditStatusFilter.value
-  quizRequestStatusFilter.value = theoryEditStatusFilter.value
   await Promise.all([loadTopicRequests(), loadContentRequests(), loadQuizRequests()])
 }
 
@@ -352,7 +568,7 @@ async function loadRoleRequests() {
   isLoadingRoleRequests.value = true
 
   try {
-    roleRequests.value = await getAdminRoleRequests(roleRequestStatusFilter.value || undefined)
+    roleRequests.value = await getAdminRoleRequests()
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas ieladet lomu pieprasijumus.'
   } finally {
@@ -370,7 +586,6 @@ function openEditModal(user: AuthUser) {
   editForm.firstName = user.firstName || ''
   editForm.lastName = user.lastName || ''
   editForm.birthDate = formatBirthDateInput(user.birthDate || null)
-  editForm.representation = user.representation || ''
   editForm.role = user.role
   editForm.rating = user.rating
 
@@ -455,7 +670,6 @@ async function saveUser() {
       firstName: editForm.firstName.trim(),
       lastName: editForm.lastName.trim(),
       birthDate: birthDateResult.value,
-      representation: editForm.representation.trim() || null,
       role: editForm.role,
       rating: editForm.rating,
     })
@@ -498,9 +712,7 @@ async function approveTopicReq(request: TheoryTopicRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await approveTopicRequest(request.id)
-    topicRequests.value = topicRequestStatusFilter.value && updated.status !== topicRequestStatusFilter.value
-      ? topicRequests.value.filter((r) => r.id !== updated.id)
-      : topicRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    topicRequests.value = topicRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedTopicRequest.value?.id === updated.id) selectedTopicRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas apstiprinat pieprasijumu.'
@@ -514,9 +726,7 @@ async function rejectTopicReq(request: TheoryTopicRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await rejectTopicRequest(request.id)
-    topicRequests.value = topicRequestStatusFilter.value && updated.status !== topicRequestStatusFilter.value
-      ? topicRequests.value.filter((r) => r.id !== updated.id)
-      : topicRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    topicRequests.value = topicRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedTopicRequest.value?.id === updated.id) selectedTopicRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas noraidit pieprasijumu.'
@@ -530,9 +740,7 @@ async function approveContentReq(request: TheoryContentRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await approveContentRequest(request.id)
-    contentRequests.value = contentRequestStatusFilter.value && updated.status !== contentRequestStatusFilter.value
-      ? contentRequests.value.filter((r) => r.id !== updated.id)
-      : contentRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    contentRequests.value = contentRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedContentRequest.value?.id === updated.id) selectedContentRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas apstiprinat pieprasijumu.'
@@ -546,9 +754,7 @@ async function rejectContentReq(request: TheoryContentRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await rejectContentRequest(request.id)
-    contentRequests.value = contentRequestStatusFilter.value && updated.status !== contentRequestStatusFilter.value
-      ? contentRequests.value.filter((r) => r.id !== updated.id)
-      : contentRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    contentRequests.value = contentRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedContentRequest.value?.id === updated.id) selectedContentRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas noraidit pieprasijumu.'
@@ -562,9 +768,7 @@ async function approveQuizReq(request: TheoryQuizRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await approveQuizRequest(request.id)
-    quizRequests.value = quizRequestStatusFilter.value && updated.status !== quizRequestStatusFilter.value
-      ? quizRequests.value.filter((r) => r.id !== updated.id)
-      : quizRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    quizRequests.value = quizRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedQuizRequest.value?.id === updated.id) selectedQuizRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas apstiprinat testa pieprasijumu.'
@@ -578,9 +782,7 @@ async function rejectQuizReq(request: TheoryQuizRequest) {
   isReviewingRequest.value = true
   try {
     const updated = await rejectQuizRequest(request.id)
-    quizRequests.value = quizRequestStatusFilter.value && updated.status !== quizRequestStatusFilter.value
-      ? quizRequests.value.filter((r) => r.id !== updated.id)
-      : quizRequests.value.map((r) => (r.id === updated.id ? updated : r))
+    quizRequests.value = quizRequests.value.map((r) => (r.id === updated.id ? updated : r))
     if (selectedQuizRequest.value?.id === updated.id) selectedQuizRequest.value = updated
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas noraidit testa pieprasijumu.'
@@ -621,10 +823,7 @@ async function approveRequest(request: RoleRequest) {
 
   try {
     const updatedRequest = await approveRoleRequest(request.id)
-    roleRequests.value =
-      roleRequestStatusFilter.value && updatedRequest.status !== roleRequestStatusFilter.value
-        ? roleRequests.value.filter((item) => item.id !== updatedRequest.id)
-        : roleRequests.value.map((item) => (item.id === updatedRequest.id ? updatedRequest : item))
+    roleRequests.value = roleRequests.value.map((item) => (item.id === updatedRequest.id ? updatedRequest : item))
     await loadUsers()
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas apstiprinat pieprasijumu.'
@@ -639,10 +838,7 @@ async function rejectRequest(request: RoleRequest) {
 
   try {
     const updatedRequest = await rejectRoleRequest(request.id)
-    roleRequests.value =
-      roleRequestStatusFilter.value && updatedRequest.status !== roleRequestStatusFilter.value
-        ? roleRequests.value.filter((item) => item.id !== updatedRequest.id)
-        : roleRequests.value.map((item) => (item.id === updatedRequest.id ? updatedRequest : item))
+    roleRequests.value = roleRequests.value.map((item) => (item.id === updatedRequest.id ? updatedRequest : item))
   } catch (error) {
     adminError.value = error instanceof Error ? error.message : 'Neizdevas noraidit pieprasijumu.'
   } finally {
@@ -877,6 +1073,19 @@ function getStatusRank(status: string) {
   }
 }
 
+function filterByStatus<T extends { status: string }>(items: T[], status: string) {
+  return status ? items.filter((item) => item.status === status) : items
+}
+
+function getStatusStats(items: Array<{ status: string }>): RequestStatusStats {
+  return {
+    total: items.length,
+    pending: items.filter((item) => item.status === 'Pending').length,
+    approved: items.filter((item) => item.status === 'Approved').length,
+    rejected: items.filter((item) => item.status === 'Rejected').length,
+  }
+}
+
 function sortIndicator<TKey extends string>(state: SortState<TKey>, key: TKey) {
   if (state.key !== key) return '↕'
   return state.direction === 'asc' ? '↑' : '↓'
@@ -885,6 +1094,40 @@ function sortIndicator<TKey extends string>(state: SortState<TKey>, key: TKey) {
 function sortAriaLabel<TKey extends string>(state: SortState<TKey>, key: TKey, label: string) {
   if (state.key !== key) return `Kārtot pēc kolonnas ${label}`
   return `Kārtot pēc kolonnas ${label} ${state.direction === 'asc' ? 'dilstoši' : 'augoši'}`
+}
+
+function totalPages(itemCount: number) {
+  return Math.max(1, Math.ceil(itemCount / ADMIN_PAGE_SIZE))
+}
+
+function paginateItems<T>(items: T[], page: number) {
+  const safePage = Math.min(Math.max(page, 1), totalPages(items.length))
+  const start = (safePage - 1) * ADMIN_PAGE_SIZE
+  return items.slice(start, start + ADMIN_PAGE_SIZE)
+}
+
+function changeUserPage(delta: number) {
+  userPage.value = Math.min(Math.max(userPage.value + delta, 1), userTotalPages.value)
+}
+
+function changeRepresentationPage(delta: number) {
+  representationPage.value = Math.min(Math.max(representationPage.value + delta, 1), representationTotalPages.value)
+}
+
+function changeEditRequestPage(delta: number) {
+  editRequestPage.value = Math.min(Math.max(editRequestPage.value + delta, 1), editRequestTotalPages.value)
+}
+
+function changeExerciseRequestPage(delta: number) {
+  exerciseRequestPage.value = Math.min(Math.max(exerciseRequestPage.value + delta, 1), exerciseRequestTotalPages.value)
+}
+
+function changeRoleRequestPage(delta: number) {
+  roleRequestPage.value = Math.min(Math.max(roleRequestPage.value + delta, 1), roleRequestTotalPages.value)
+}
+
+function formatVisibility(representation: Representation) {
+  return representation.isPublic ? 'Publiska' : 'Privāta'
 }
 
 function getDisplayName(user: AuthUser) {
@@ -903,9 +1146,18 @@ function isCurrentUser(user: AuthUser) {
 <template>
   <section class="content-panel card border-primary-subtle admin-panel">
     <div class="card-body p-3 p-lg-4">
-      <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-        <div>
-          <h1 class="section-heading mb-2">Administrēšanas panelis</h1>
+      <div class="admin-panel__header mb-4">
+        <div class="representations-section-heading">
+          <span class="representations-section-icon admin-panel__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="M9 12l2 2 4-5" />
+            </svg>
+          </span>
+          <div>
+            <h1 class="section-heading mb-1">Administrēšanas panelis</h1>
+            <p class="admin-section-hint">Pārvaldi lietotājus, pieprasījumus un pārstāvniecību pārskatu vienā vietā.</p>
+          </div>
         </div>
         <button class="btn btn-outline-light" type="button" :disabled="isRefreshing" @click="refreshActiveSection">
           {{ isRefreshing ? 'Ielādē...' : 'Atsvaidzināt' }}
@@ -920,6 +1172,14 @@ function isCurrentUser(user: AuthUser) {
           @click="activeSection = 'users'"
         >
           Lietotaji
+        </button>
+        <button
+          type="button"
+          class="ex-filter-btn"
+          :class="{ active: activeSection === 'representations' }"
+          @click="activeSection = 'representations'"
+        >
+          Pārstāvniecības
         </button>
         <button
           type="button"
@@ -1027,7 +1287,7 @@ function isCurrentUser(user: AuthUser) {
                 <td colspan="6" class="text-center py-4">Nav atrastu lietotāju.</td>
               </tr>
               <template v-else>
-                <tr v-for="user in sortedFilteredUsers" :key="user.id">
+                <tr v-for="user in pagedUsers" :key="user.id">
                   <td>
                     <div class="admin-user-cell">
                       <strong>{{ getDisplayName(user) }}</strong>
@@ -1064,18 +1324,151 @@ function isCurrentUser(user: AuthUser) {
             </tbody>
           </table>
         </div>
+
+        <nav v-if="sortedFilteredUsers.length > ADMIN_PAGE_SIZE" class="admin-pagination" aria-label="Lietotāju lapas">
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="userPage <= 1" @click="changeUserPage(-1)">
+            Iepriekšējā
+          </button>
+          <span>Lapa <strong>{{ userPage }}</strong> no <strong>{{ userTotalPages }}</strong> · {{ sortedFilteredUsers.length }} lietotāji</span>
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="userPage >= userTotalPages" @click="changeUserPage(1)">
+            Nākamā
+          </button>
+        </nav>
+      </div>
+
+      <div v-if="activeSection === 'representations'">
+        <div class="admin-summary mb-4">
+          <div class="admin-summary__item">
+            <span>Pārstāvniecības</span>
+            <strong>{{ representations.length }}</strong>
+          </div>
+          <div class="admin-summary__item">
+            <span>Publiskas</span>
+            <strong>{{ publicRepresentationCount }}</strong>
+          </div>
+          <div class="admin-summary__item">
+            <span>Privātas</span>
+            <strong>{{ privateRepresentationCount }}</strong>
+          </div>
+          <div class="admin-summary__item">
+            <span>Dalībnieki</span>
+            <strong>{{ representationMemberCount }}</strong>
+          </div>
+        </div>
+
+        <div class="admin-toolbar mb-3">
+          <input
+            v-model="representationSearch"
+            class="form-control auth-input"
+            type="search"
+            placeholder="Meklēt pēc nosaukuma vai apraksta"
+          />
+          <select v-model="representationVisibilityFilter" class="form-select auth-input">
+            <option value="">Visa pieejamība</option>
+            <option value="public">Publiskas</option>
+            <option value="private">Privātas</option>
+          </select>
+        </div>
+
+        <div class="admin-table-wrap">
+          <table class="table admin-table admin-table--representations align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Pārstāvniecība</th>
+                <th scope="col">Pieejamība</th>
+                <th scope="col">Dalībnieki</th>
+                <th scope="col">Vidējais reitings</th>
+                <th scope="col">Atrisināti</th>
+                <th scope="col">Izveidota</th>
+                <th scope="col" class="text-end">Darbības</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="isLoadingRepresentations">
+                <td colspan="7" class="text-center py-4">Ielādē pārstāvniecības...</td>
+              </tr>
+              <tr v-else-if="filteredRepresentations.length === 0">
+                <td colspan="7" class="text-center py-4">Nav atrastu pārstāvniecību.</td>
+              </tr>
+              <template v-else>
+                <tr v-for="representation in pagedRepresentations" :key="representation.id">
+                  <td>
+                    <div class="admin-user-cell">
+                      <router-link
+                        class="rating-user-link"
+                        :to="{ name: 'representation-detail', params: { name: representation.name } }"
+                      >
+                        <strong>{{ representation.name }}</strong>
+                      </router-link>
+                      <span>{{ representation.description || 'Bez apraksta' }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="admin-role-pill" :class="representation.isPublic ? 'admin-role-pill--pedagogs' : 'admin-role-pill--administrators'">
+                      {{ formatVisibility(representation) }}
+                    </span>
+                  </td>
+                  <td>{{ representation.memberCount }}</td>
+                  <td>{{ representation.averageRating }}</td>
+                  <td>
+                    <div class="admin-user-cell">
+                      <strong>{{ representation.exerciseSolved }}</strong>
+                      <small>{{ representation.exerciseSolvedLast7Days }} pēdējās 7 dienās</small>
+                    </div>
+                  </td>
+                  <td>{{ formatDateTime(representation.createdAtUtc) }}</td>
+                  <td>
+                    <div class="d-flex justify-content-end gap-2">
+                      <button class="btn btn-outline-light btn-sm" type="button" @click="openRepresentationEditModal(representation)">
+                        Rediģēt
+                      </button>
+                      <button class="btn btn-outline-danger btn-sm" type="button" @click="openRepresentationDeleteModal(representation)">
+                        Dzēst
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <nav v-if="filteredRepresentations.length > ADMIN_PAGE_SIZE" class="admin-pagination" aria-label="Pārstāvniecību lapas">
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="representationPage <= 1" @click="changeRepresentationPage(-1)">
+            Iepriekšējā
+          </button>
+          <span>Lapa <strong>{{ representationPage }}</strong> no <strong>{{ representationTotalPages }}</strong> · {{ filteredRepresentations.length }} pārstāvniecības</span>
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="representationPage >= representationTotalPages" @click="changeRepresentationPage(1)">
+            Nākamā
+          </button>
+        </nav>
       </div>
 
       <div v-if="activeSection === 'editRequests'">
         <div class="admin-toolbar admin-toolbar--requests mb-3">
-          <select v-model="theoryEditStatusFilter" class="form-select auth-input" @change="loadTheoryEditRequests">
+          <select v-model="theoryEditStatusFilter" class="form-select auth-input">
+            <option value="">Visi pieprasījumi</option>
             <option value="Pending">Gaida</option>
             <option value="Approved">Apstiprināti</option>
             <option value="Rejected">Noraidīti</option>
-            <option value="">Visi pieprasījumi</option>
           </select>
-          <button class="btn btn-outline-light" type="button" :disabled="isLoadingTheoryEditRequests" @click="loadTheoryEditRequests">
-            {{ isLoadingTheoryEditRequests ? 'Ielādē...' : 'Atsvaidzināt' }}
+        </div>
+        <div class="admin-status-summary mb-3" aria-label="Rediģēšanas pieprasījumu statistika">
+          <button class="admin-status-badge admin-status-badge--all" :class="{ active: theoryEditStatusFilter === '' }" type="button" @click="theoryEditStatusFilter = ''">
+            <span>Visi</span>
+            <strong>{{ theoryEditStatusStats.total }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--pending" :class="{ active: theoryEditStatusFilter === 'Pending' }" type="button" @click="theoryEditStatusFilter = 'Pending'">
+            <span>Gaida</span>
+            <strong>{{ theoryEditStatusStats.pending }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--approved" :class="{ active: theoryEditStatusFilter === 'Approved' }" type="button" @click="theoryEditStatusFilter = 'Approved'">
+            <span>Apstiprināti</span>
+            <strong>{{ theoryEditStatusStats.approved }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--rejected" :class="{ active: theoryEditStatusFilter === 'Rejected' }" type="button" @click="theoryEditStatusFilter = 'Rejected'">
+            <span>Noraidīti</span>
+            <strong>{{ theoryEditStatusStats.rejected }}</strong>
           </button>
         </div>
 
@@ -1119,7 +1512,7 @@ function isCurrentUser(user: AuthUser) {
                 <td colspan="6" class="text-center py-4">Nav teorijas pieprasījumu.</td>
               </tr>
               <template v-else>
-                <tr v-for="request in sortedTheoryEditRequests" :key="`${request.editKind}-${request.id}`">
+                <tr v-for="request in pagedTheoryEditRequests" :key="`${request.editKind}-${request.id}`">
                   <td>
                     <div class="admin-user-cell">
                       <strong>{{ request.fullName || request.email }}</strong>
@@ -1184,6 +1577,16 @@ function isCurrentUser(user: AuthUser) {
             </tbody>
           </table>
         </div>
+
+        <nav v-if="sortedTheoryEditRequests.length > ADMIN_PAGE_SIZE" class="admin-pagination" aria-label="Rediģēšanas pieprasījumu lapas">
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="editRequestPage <= 1" @click="changeEditRequestPage(-1)">
+            Iepriekšējā
+          </button>
+          <span>Lapa <strong>{{ editRequestPage }}</strong> no <strong>{{ editRequestTotalPages }}</strong> · {{ sortedTheoryEditRequests.length }} pieprasījumi</span>
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="editRequestPage >= editRequestTotalPages" @click="changeEditRequestPage(1)">
+            Nākamā
+          </button>
+        </nav>
       </div>
 
       <div v-if="activeSection === 'exerciseRequests'">
@@ -1191,13 +1594,30 @@ function isCurrentUser(user: AuthUser) {
           <select
             v-model="pendingExerciseStatusFilter"
             class="form-select auth-input"
-            @change="loadPendingExercises"
           >
+            <option value="">Visi pieprasījumi</option>
             <option value="Pending">Gaida</option>
             <option value="Approved">Apstiprināti</option>
             <option value="Rejected">Noraidīti</option>
-            <option value="">Visi pieprasījumi</option>
           </select>
+        </div>
+        <div class="admin-status-summary mb-3" aria-label="Uzdevumu pieprasījumu statistika">
+          <button class="admin-status-badge admin-status-badge--all" :class="{ active: pendingExerciseStatusFilter === '' }" type="button" @click="pendingExerciseStatusFilter = ''">
+            <span>Visi</span>
+            <strong>{{ exerciseRequestStatusStats.total }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--pending" :class="{ active: pendingExerciseStatusFilter === 'Pending' }" type="button" @click="pendingExerciseStatusFilter = 'Pending'">
+            <span>Gaida</span>
+            <strong>{{ exerciseRequestStatusStats.pending }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--approved" :class="{ active: pendingExerciseStatusFilter === 'Approved' }" type="button" @click="pendingExerciseStatusFilter = 'Approved'">
+            <span>Apstiprināti</span>
+            <strong>{{ exerciseRequestStatusStats.approved }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--rejected" :class="{ active: pendingExerciseStatusFilter === 'Rejected' }" type="button" @click="pendingExerciseStatusFilter = 'Rejected'">
+            <span>Noraidīti</span>
+            <strong>{{ exerciseRequestStatusStats.rejected }}</strong>
+          </button>
         </div>
 
         <div class="admin-table-wrap">
@@ -1218,11 +1638,11 @@ function isCurrentUser(user: AuthUser) {
               <tr v-if="isLoadingPendingExercises">
                 <td colspan="8" class="text-center py-4">Ielādē uzdevumus...</td>
               </tr>
-              <tr v-else-if="pendingExercises.length === 0">
+              <tr v-else-if="filteredPendingExercises.length === 0">
                 <td colspan="8" class="text-center py-4">Nav uzdevumu šim filtram.</td>
               </tr>
               <template v-else>
-                <tr v-for="exercise in pendingExercises" :key="exercise.id">
+                <tr v-for="exercise in pagedPendingExercises" :key="exercise.id">
                   <td>
                     <div class="admin-user-cell">
                       <strong>{{ exercise.authorName || 'Nezināms autors' }}</strong>
@@ -1291,18 +1711,43 @@ function isCurrentUser(user: AuthUser) {
             </tbody>
           </table>
         </div>
+
+        <nav v-if="filteredPendingExercises.length > ADMIN_PAGE_SIZE" class="admin-pagination" aria-label="Uzdevumu pieprasījumu lapas">
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="exerciseRequestPage <= 1" @click="changeExerciseRequestPage(-1)">
+            Iepriekšējā
+          </button>
+          <span>Lapa <strong>{{ exerciseRequestPage }}</strong> no <strong>{{ exerciseRequestTotalPages }}</strong> · {{ filteredPendingExercises.length }} pieprasījumi</span>
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="exerciseRequestPage >= exerciseRequestTotalPages" @click="changeExerciseRequestPage(1)">
+            Nākamā
+          </button>
+        </nav>
       </div>
 
       <div v-if="activeSection === 'roleRequests'">
         <div class="admin-toolbar admin-toolbar--requests mb-3">
-          <select v-model="roleRequestStatusFilter" class="form-select auth-input" @change="loadRoleRequests">
+          <select v-model="roleRequestStatusFilter" class="form-select auth-input">
+            <option value="">Visi pieprasījumi</option>
             <option value="Pending">Gaida</option>
             <option value="Approved">Apstiprināti</option>
             <option value="Rejected">Noraidīti</option>
-            <option value="">Visi pieprasījumi</option>
           </select>
-          <button class="btn btn-outline-light" type="button" :disabled="isLoadingRoleRequests" @click="loadRoleRequests">
-            {{ isLoadingRoleRequests ? 'Ielādē...' : 'Atsvaidzināt' }}
+        </div>
+        <div class="admin-status-summary mb-3" aria-label="Lomu pieprasījumu statistika">
+          <button class="admin-status-badge admin-status-badge--all" :class="{ active: roleRequestStatusFilter === '' }" type="button" @click="roleRequestStatusFilter = ''">
+            <span>Visi</span>
+            <strong>{{ roleRequestStatusStats.total }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--pending" :class="{ active: roleRequestStatusFilter === 'Pending' }" type="button" @click="roleRequestStatusFilter = 'Pending'">
+            <span>Gaida</span>
+            <strong>{{ roleRequestStatusStats.pending }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--approved" :class="{ active: roleRequestStatusFilter === 'Approved' }" type="button" @click="roleRequestStatusFilter = 'Approved'">
+            <span>Apstiprināti</span>
+            <strong>{{ roleRequestStatusStats.approved }}</strong>
+          </button>
+          <button class="admin-status-badge admin-status-badge--rejected" :class="{ active: roleRequestStatusFilter === 'Rejected' }" type="button" @click="roleRequestStatusFilter = 'Rejected'">
+            <span>Noraidīti</span>
+            <strong>{{ roleRequestStatusStats.rejected }}</strong>
           </button>
         </div>
 
@@ -1346,7 +1791,7 @@ function isCurrentUser(user: AuthUser) {
                 <td colspan="6" class="text-center py-4">Nav lomu pieprasījumu.</td>
               </tr>
               <template v-else>
-                <tr v-for="request in sortedRoleRequests" :key="request.id">
+                <tr v-for="request in pagedRoleRequests" :key="request.id">
                   <td>
                     <div class="admin-user-cell">
                       <strong>{{ request.fullName || request.email }}</strong>
@@ -1393,6 +1838,16 @@ function isCurrentUser(user: AuthUser) {
             </tbody>
           </table>
         </div>
+
+        <nav v-if="sortedRoleRequests.length > ADMIN_PAGE_SIZE" class="admin-pagination" aria-label="Lomu pieprasījumu lapas">
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="roleRequestPage <= 1" @click="changeRoleRequestPage(-1)">
+            Iepriekšējā
+          </button>
+          <span>Lapa <strong>{{ roleRequestPage }}</strong> no <strong>{{ roleRequestTotalPages }}</strong> · {{ sortedRoleRequests.length }} pieprasījumi</span>
+          <button class="btn btn-outline-light btn-sm" type="button" :disabled="roleRequestPage >= roleRequestTotalPages" @click="changeRoleRequestPage(1)">
+            Nākamā
+          </button>
+        </nav>
       </div>
     </div>
 
@@ -1525,15 +1980,6 @@ function isCurrentUser(user: AuthUser) {
               />
               <div v-if="editErrors.rating" class="invalid-feedback d-block">{{ editErrors.rating }}</div>
             </div>
-            <div class="col-12">
-              <label class="form-label" for="adminEditEducation">Pārstāvniecība</label>
-              <input
-                id="adminEditEducation"
-                v-model="editForm.representation"
-                class="form-control form-control-lg auth-input"
-                type="text"
-              />
-            </div>
 
             <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
               <button class="btn btn-outline-light" type="button" @click="closeEditModal">Atcelt</button>
@@ -1542,6 +1988,76 @@ function isCurrentUser(user: AuthUser) {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isRepresentationEditModalOpen" class="app-modal-backdrop" @click.self="closeRepresentationEditModal">
+      <div class="app-modal card border-primary-subtle">
+        <div class="card-body p-3 p-lg-4">
+          <h2 class="section-heading mb-3">Rediģēt pārstāvniecību</h2>
+
+          <form class="row g-3" @submit.prevent="saveRepresentation">
+            <div class="col-12 col-lg-7">
+              <label class="form-label" for="adminEditRepresentationName">Nosaukums</label>
+              <input
+                id="adminEditRepresentationName"
+                v-model="representationForm.name"
+                class="form-control form-control-lg auth-input"
+                :class="{ 'is-invalid': !!representationErrors.name }"
+                type="text"
+              />
+              <div v-if="representationErrors.name" class="invalid-feedback d-block">{{ representationErrors.name }}</div>
+            </div>
+            <div class="col-12 col-lg-5">
+              <label class="form-label" for="adminEditRepresentationVisibility">Pieejamība</label>
+              <select
+                id="adminEditRepresentationVisibility"
+                v-model="representationForm.isPublic"
+                class="form-select form-select-lg auth-input"
+              >
+                <option :value="true">Publiska</option>
+                <option :value="false">Privāta</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="adminEditRepresentationDescription">Apraksts</label>
+              <textarea
+                id="adminEditRepresentationDescription"
+                v-model="representationForm.description"
+                class="form-control form-control-lg auth-input"
+                :class="{ 'is-invalid': !!representationErrors.description }"
+                rows="4"
+              ></textarea>
+              <div v-if="representationErrors.description" class="invalid-feedback d-block">{{ representationErrors.description }}</div>
+            </div>
+
+            <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
+              <button class="btn btn-outline-light" type="button" @click="closeRepresentationEditModal">Atcelt</button>
+              <button class="btn btn-primary" type="submit" :disabled="isSavingRepresentation">
+                {{ isSavingRepresentation ? 'Saglabā...' : 'Saglabāt' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isRepresentationDeleteModalOpen" class="app-modal-backdrop" @click.self="closeRepresentationDeleteModal">
+      <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
+        <div class="card-body p-3 p-lg-4">
+          <h2 class="section-heading delete-modal__title mb-3">{{ selectedRepresentation?.name }}</h2>
+          <p class="delete-modal__text mb-4">
+            Pārstāvniecība, tās dalībnieku piesaiste un gaidošie pieprasījumi tiks dzēsti.
+          </p>
+
+          <div class="delete-modal__actions">
+            <button class="btn btn-outline-light" type="button" :disabled="isDeletingRepresentation" @click="closeRepresentationDeleteModal">Atcelt</button>
+            <button class="btn btn-primary delete-modal__confirm" type="button" :disabled="isDeletingRepresentation" @click="confirmDeleteRepresentation">
+              <span v-if="isDeletingRepresentation" class="logout-modal__spinner" aria-hidden="true"></span>
+              {{ isDeletingRepresentation ? 'Dzēšu...' : 'Dzēst' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1633,16 +2149,17 @@ function isCurrentUser(user: AuthUser) {
     </div>
 
     <div v-if="isDeleteModalOpen" class="app-modal-backdrop" @click.self="closeDeleteModal">
-      <div class="app-modal app-modal--sm card border-primary-subtle">
+      <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
         <div class="card-body p-3 p-lg-4">
-          <h2 class="section-heading mb-3">{{ selectedUser ? getDisplayName(selectedUser) : '' }}</h2>
-          <p class="logout-text logout-text--navbar mb-4">
+          <h2 class="section-heading delete-modal__title mb-3">{{ selectedUser ? getDisplayName(selectedUser) : '' }}</h2>
+          <p class="delete-modal__text mb-4">
             Lietotāja konts un aktīvās sesijas tiks dzēstas.
           </p>
 
-          <div class="d-flex justify-content-end gap-2">
-            <button class="btn btn-outline-light" type="button" @click="closeDeleteModal">Atcelt</button>
-            <button class="btn btn-primary" type="button" :disabled="isDeletingUser" @click="confirmDeleteUser">
+          <div class="delete-modal__actions">
+            <button class="btn btn-outline-light" type="button" :disabled="isDeletingUser" @click="closeDeleteModal">Atcelt</button>
+            <button class="btn btn-primary delete-modal__confirm" type="button" :disabled="isDeletingUser" @click="confirmDeleteUser">
+              <span v-if="isDeletingUser" class="logout-modal__spinner" aria-hidden="true"></span>
               {{ isDeletingUser ? 'Dzēšu...' : 'Dzēst' }}
             </button>
           </div>

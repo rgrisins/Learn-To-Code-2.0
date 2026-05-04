@@ -1608,18 +1608,19 @@ function topicQuizPercent(topic: TheoryTopic): number {
   </div>
 
   <div v-if="isDeleteTheoryModalOpen" class="app-modal-backdrop" @click.self="closeDeleteTheoryModal">
-    <div class="app-modal app-modal--sm card border-primary-subtle">
+    <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
       <div class="card-body p-3 p-lg-4">
-        <h2 class="section-heading mb-3">{{ deleteTheoryTitle }}</h2>
-        <p class="logout-text logout-text--navbar mb-4">{{ deleteTheoryDescription }}</p>
+        <h2 class="section-heading delete-modal__title mb-3">{{ deleteTheoryTitle }}</h2>
+        <p class="delete-modal__text mb-4">{{ deleteTheoryDescription }}</p>
 
         <div v-if="theoryError" class="alert alert-danger mb-3">{{ theoryError }}</div>
 
-        <div class="d-flex justify-content-end gap-2">
+        <div class="delete-modal__actions">
           <button class="btn btn-outline-light" type="button" :disabled="isDeletingTheory" @click="closeDeleteTheoryModal">
             Atcelt
           </button>
-          <button class="btn btn-primary" type="button" :disabled="isDeletingTheory" @click="confirmDeleteTheory">
+          <button class="btn btn-primary delete-modal__confirm" type="button" :disabled="isDeletingTheory" @click="confirmDeleteTheory">
+            <span v-if="isDeletingTheory" class="logout-modal__spinner" aria-hidden="true"></span>
             {{ isDeletingTheory ? 'Dzēšu...' : 'Dzēst' }}
           </button>
         </div>

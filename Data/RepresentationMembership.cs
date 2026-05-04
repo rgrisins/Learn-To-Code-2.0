@@ -3,6 +3,7 @@ namespace LearnToCode.Data;
 public enum RepresentationMemberRole
 {
     Owner,
+    Moderators,
     Member,
 }
 

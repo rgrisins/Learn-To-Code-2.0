@@ -47,9 +47,6 @@ public class AdminUsersController : ControllerBase
         var username = request.Username.Trim();
         var firstName = request.FirstName.Trim();
         var lastName = request.LastName.Trim();
-        var representation = string.IsNullOrWhiteSpace(request.Representation)
-            ? null
-            : request.Representation.Trim();
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
         {
@@ -59,11 +56,6 @@ public class AdminUsersController : ControllerBase
         if (username.Length is < 3 or > 30)
         {
             return BadRequest(new { message = "Lietotajvardam jabut 3-30 rakstzimes garam." });
-        }
-
-        if (representation?.Length > 200)
-        {
-            return BadRequest(new { message = "Pārstāvniecības nosaukums ir par garu." });
         }
 
         if (!Enum.TryParse<UserRole>(request.Role, ignoreCase: true, out var role))
@@ -98,7 +90,6 @@ public class AdminUsersController : ControllerBase
         user.FirstName = firstName;
         user.LastName = lastName;
         user.BirthDate = request.BirthDate;
-        user.Representation = representation;
         user.Role = role;
         user.Rating = Math.Max(0, request.Rating);
         user.UpdatedAtUtc = DateTime.UtcNow;

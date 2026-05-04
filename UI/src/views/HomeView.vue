@@ -1,70 +1,135 @@
 <script setup lang="ts">
-const featuredNews = [
+import { computed, onMounted, ref } from 'vue'
+import { isAuthenticated } from '../services/auth'
+import { getRatingUsers } from '../services/ratings'
+
+const platformHighlights = [
   {
-    category: 'Teorija',
-    date: '28.04.2026',
-    title: 'Programmēšanas valodu katalogs ir atvērts',
+    label: 'Teorija',
+    title: 'Mācies pa valodām un tēmām',
     summary:
-      'Teorijas sadaļā tagad var izvēlēties valodu, tēmu un lasīt materiālu pa lapām. Sākumā pieejamas Python, Java un C# valodas.',
+      'Python, Java, JavaScript, PHP un C# materiāli ir sadalīti īsās lapās ar grūtības pakāpēm, piemēriem un progresu.',
+    route: { name: 'theory' },
+    action: 'Atvērt teoriju',
   },
   {
-    category: 'Pedagogiem',
-    date: '28.04.2026',
-    title: 'Pieprasījumi teorijas papildināšanai',
+    label: 'Uzdevumi',
+    title: 'Pārbaudi zināšanas praksē',
     summary:
-      'Pedagogi un administratori var iesniegt jaunas tēmas, pievienot teorijas lapas vai piedāvāt labojumus esošam saturam.',
+      'Risini programmēšanas uzdevumus, iesniedz kodu un saņem rezultātu pēc testu izpildes.',
+    route: { name: 'exercises' },
+    action: 'Skatīt uzdevumus',
   },
   {
-    category: 'Administrēšana',
-    date: '27.04.2026',
-    title: 'Admin panelī pieejama lietotāju un pieprasījumu pārvaldība',
+    label: 'Reitings',
+    title: 'Seko progresam kopā ar citiem',
     summary:
-      'Administratoriem ir vienots skats lietotāju sarakstam, lomu pieprasījumiem un teorijas rediģēšanas pieprasījumiem.',
+      'Lietotāju un pārstāvniecību reitingi parāda, kā aug zināšanas, atrisinātie uzdevumi un kopējais ieguldījums.',
+    route: { name: 'ratings' },
+    action: 'Apskatīt reitingu',
   },
 ]
 
-const sideNews = [
-  'Audzēkņi var lasīt teoriju bez pieteikšanās.',
-  'Pedagoga lomas pieprasījumi tiek pārbaudīti pirms apstiprināšanas.',
-  'Teorijas saturs tiek glabāts Markdown formātā, lai ērti rādītu koda piemērus.',
+const userCount = ref<number | null>(null)
+
+const quickStats = computed(() => [
+  {
+    value: userCount.value === null ? '...' : new Intl.NumberFormat('lv-LV').format(userCount.value),
+    label: 'lietotāji',
+  },
+  { value: '24/7', label: 'pieejams pašmācībai' },
+])
+
+const flowSteps = [
+  'Izvēlies valodu un sāc ar teoriju',
+  'Atzīmē izlasītās lapas un izpildi testus',
+  'Risini praktiskos uzdevumus un krāj reitingu',
 ]
+
+onMounted(async () => {
+  try {
+    userCount.value = (await getRatingUsers()).length
+  } catch {
+    userCount.value = 0
+  }
+})
 </script>
 
 <template>
-  <section class="news-layout">
-    <header class="news-hero content-panel card border-primary-subtle">
-      <div class="card-body p-3 p-lg-4 p-xl-5">
-        <h1 class="section-heading mb-3">Aktuālais platformā</h1>
-        <p class="news-lead mb-0">
-          Jaunumi par mācību materiāliem, lomu pieprasījumiem un platformas iespējām vienā pārskatāmā plūsmā.
-        </p>
+  <section class="home-shell">
+    <header class="home-hero content-panel card border-primary-subtle">
+      <div class="card-body p-3 p-lg-4">
+        <div class="theory-header exercises-header">
+          <span class="page-title-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h12" />
+              <path d="M6 17h12a2 2 0 0 1 2 2v1H6a2 2 0 0 1 0-4z" />
+              <path d="M9 7h6" />
+              <path d="M9 11h4" />
+            </svg>
+          </span>
+          <div class="theory-heading-copy">
+            <h1 class="section-heading mb-1">Programmēšanas mācības vienā platformā</h1>
+            <p class="home-lead mb-0">
+              Mācies teoriju, pārbaudi zināšanas testos, risini praktiskus uzdevumus un seko progresam reitingā.
+            </p>
+          </div>
+          <div class="exercises-header__badges representations-summary home-hero__badges">
+            <div v-for="stat in quickStats" :key="stat.label" class="representations-stat-chip home-stat-chip">
+              <span>{{ stat.label }}</span>
+              <strong>{{ stat.value }}</strong>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
-    <div class="news-main">
+    <div class="home-grid">
       <article
-        v-for="item in featuredNews"
+        v-for="item in platformHighlights"
         :key="item.title"
-        class="news-card content-panel card border-primary-subtle"
+        class="home-feature content-panel card border-primary-subtle"
       >
         <div class="card-body p-3 p-lg-4">
-          <div class="news-meta">
-            <span>{{ item.category }}</span>
-            <time>{{ item.date }}</time>
+          <div class="representations-section-heading mb-3">
+            <span class="representations-section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14" />
+                <path d="M12 5l7 7-7 7" />
+              </svg>
+            </span>
+            <span class="home-feature__label">{{ item.label }}</span>
           </div>
           <h2>{{ item.title }}</h2>
           <p>{{ item.summary }}</p>
+          <router-link class="home-feature__link" :to="item.route">{{ item.action }}</router-link>
         </div>
       </article>
     </div>
 
-    <aside class="news-sidebar content-panel card border-primary-subtle">
+    <section class="home-flow content-panel card border-primary-subtle">
       <div class="card-body p-3 p-lg-4">
-        <h2 class="news-sidebar__title">Kas jāzina</h2>
-        <ul class="news-list">
-          <li v-for="item in sideNews" :key="item">{{ item }}</li>
-        </ul>
+        <div class="home-flow__header">
+          <div class="representations-section-heading">
+            <span class="representations-section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M3 12h18" />
+                <path d="M3 18h18" />
+              </svg>
+            </span>
+            <h2 class="section-heading section-heading--caps mb-0">Mācību ceļš</h2>
+          </div>
+          <router-link v-if="!isAuthenticated" class="btn btn-outline-light btn-sm" :to="{ name: 'register' }">Izveidot profilu</router-link>
+        </div>
+
+        <ol class="home-flow__steps">
+          <li v-for="(step, index) in flowSteps" :key="step">
+            <span>{{ index + 1 }}</span>
+            <strong>{{ step }}</strong>
+          </li>
+        </ol>
       </div>
-    </aside>
+    </section>
   </section>
 </template>
