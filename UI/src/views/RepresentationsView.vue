@@ -30,9 +30,12 @@ const isLoading = ref(false)
 const isLoadingMembers = ref(false)
 const isSaving = ref(false)
 const isJoiningId = ref<number | null>(null)
+const isLeaveRepresentationModalOpen = ref(false)
+const isLeavingRepresentation = ref(false)
 const pageError = ref('')
 const formError = ref('')
 const memberSearch = ref('')
+const representationSearch = ref('')
 const memberSortDirection = ref<SortDirection>('desc')
 
 const isEditing = ref(false)
@@ -69,16 +72,29 @@ const availableRepresentations = computed(() =>
     .sort((first, second) => first.name.localeCompare(second.name, 'lv')),
 )
 
+const filteredAvailableRepresentations = computed(() => {
+  const query = normalizeSearch(representationSearch.value)
+  if (!query) return availableRepresentations.value
+
+  return availableRepresentations.value.filter((representation) =>
+    normalizeSearch(representation.name).includes(query) ||
+    normalizeSearch(representation.description).includes(query),
+  )
+})
+
 const myRepresentationRank = computed(() => {
   const mine = selectedRepresentation.value
   if (!mine) return null
+  if (isRankingExcludedRepresentation(mine)) return null
 
-  const ranked = [...allRepresentations.value].sort((first, second) => {
-    if (second.averageRating !== first.averageRating) {
-      return second.averageRating - first.averageRating
-    }
-    return second.memberCount - first.memberCount
-  })
+  const ranked = allRepresentations.value
+    .filter((representation) => !isRankingExcludedRepresentation(representation))
+    .sort((first, second) => {
+      if (second.averageRating !== first.averageRating) {
+        return second.averageRating - first.averageRating
+      }
+      return second.memberCount - first.memberCount
+    })
 
   const index = ranked.findIndex((representation) => representation.id === mine.id)
   if (index < 0) return null
@@ -87,6 +103,10 @@ const myRepresentationRank = computed(() => {
 
 function normalizeSearch(value?: string | null) {
   return value?.trim().toLocaleLowerCase('lv-LV') ?? ''
+}
+
+function isRankingExcludedRepresentation(representation: Pick<Representation, 'name'>) {
+  return normalizeSearch(representation.name) === 'learntocode'
 }
 
 const topMembers = computed(() => {
@@ -377,18 +397,33 @@ function canKick(member: RepresentationMember) {
   return false
 }
 
-async function leaveCurrent() {
+function openLeaveRepresentationModal() {
+  if (!selectedRepresentation.value) return
+  pageError.value = ''
+  isLeaveRepresentationModalOpen.value = true
+}
+
+function closeLeaveRepresentationModal() {
+  if (isLeavingRepresentation.value) return
+  isLeaveRepresentationModalOpen.value = false
+}
+
+async function confirmLeaveRepresentation() {
   const selected = selectedRepresentation.value
   if (!selected) return
 
+  isLeavingRepresentation.value = true
   pageError.value = ''
   try {
     await leaveRepresentation(selected.id)
     selectedRepresentationId.value = null
+    isLeaveRepresentationModalOpen.value = false
     await loadRepresentations()
     await refreshProfileState()
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : 'Neizdevās izstāties no pārstāvniecības.'
+  } finally {
+    isLeavingRepresentation.value = false
   }
 }
 
@@ -502,7 +537,6 @@ function rankChipClass(index: number) {
                 class="form-control auth-input"
                 type="text"
                 maxlength="160"
-                placeholder="Piemēram, RVT 2. kurss"
               />
             </label>
 
@@ -513,7 +547,6 @@ function rankChipClass(index: number) {
                 class="form-control auth-input"
                 maxlength="800"
                 rows="4"
-                placeholder="Īsi par grupu, klasi vai organizāciju"
               ></textarea>
             </label>
 
@@ -568,19 +601,33 @@ function rankChipClass(index: number) {
             <h2 class="section-heading section-heading--caps mb-0">Pievienoties</h2>
           </div>
 
+          <label v-if="availableRepresentations.length" class="representation-field representation-search-field">
+            <span class="representation-field__label">Meklēt pārstāvniecību</span>
+            <input
+              v-model="representationSearch"
+              class="form-control auth-input"
+              type="search"
+            />
+          </label>
+
           <div v-if="!availableRepresentations.length" class="representations-empty">
             Nav citu pārstāvniecību, kurām pievienoties.
+          </div>
+
+          <div v-else-if="!filteredAvailableRepresentations.length" class="representations-empty">
+            Nav pārstāvniecību, kas atbilst meklēšanai.
           </div>
 
           <div v-if="pendingNotice" class="alert alert-info">
             {{ pendingNotice }}
           </div>
 
-          <div v-else class="representation-list">
-            <article
-              v-for="representation in availableRepresentations"
+          <div v-else-if="filteredAvailableRepresentations.length" class="representation-list representation-list--available">
+            <router-link
+              v-for="representation in filteredAvailableRepresentations"
               :key="representation.id"
               class="representation-list-item"
+              :to="{ name: 'representation-detail', params: { name: representation.name } }"
             >
               <div>
                 <strong>
@@ -589,18 +636,20 @@ function rankChipClass(index: number) {
                 </strong>
                 <span>{{ representation.memberCount }} dalībnieki</span>
               </div>
-              <button
-                class="btn btn-primary btn-sm"
-                type="button"
-                :disabled="isJoiningId === representation.id || representation.hasPendingJoinRequest"
-                @click="join(representation.id)"
-              >
+              <div class="representations-panel-actions">
+                <button
+                  class="btn btn-primary btn-sm"
+                  type="button"
+                  :disabled="isJoiningId === representation.id || representation.hasPendingJoinRequest"
+                  @click.prevent.stop="join(representation.id)"
+                >
                 <template v-if="representation.hasPendingJoinRequest">Pieprasījums iesniegts</template>
                 <template v-else-if="isJoiningId === representation.id">Pievienojas...</template>
                 <template v-else-if="representation.isPublic">Pievienoties</template>
                 <template v-else>Sūtīt pieprasījumu</template>
-              </button>
-            </article>
+                </button>
+              </div>
+            </router-link>
           </div>
         </div>
       </section>
@@ -633,7 +682,7 @@ function rankChipClass(index: number) {
                 v-if="selectedRepresentation"
                 class="btn btn-outline-light btn-sm"
                 type="button"
-                @click="leaveCurrent"
+                @click="openLeaveRepresentationModal"
               >
                 Izstāties
               </button>
@@ -826,6 +875,33 @@ function rankChipClass(index: number) {
             </div>
         </div>
       </section>
+    </div>
+
+    <div v-if="isLeaveRepresentationModalOpen" class="app-modal-backdrop" @click.self="closeLeaveRepresentationModal">
+      <div class="app-modal app-modal--sm card border-primary-subtle delete-modal" role="dialog" aria-modal="true" aria-labelledby="leaveRepresentationTitle">
+        <div class="card-body p-3 p-lg-4">
+          <div class="delete-modal__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v5" />
+              <path d="M14 11v5" />
+            </svg>
+          </div>
+          <h2 id="leaveRepresentationTitle" class="section-heading delete-modal__title mb-3">Izstāties no pārstāvniecības?</h2>
+          <p class="delete-modal__text mb-4">
+            Tu zaudēsi piesaisti “{{ selectedRepresentation?.name }}” pārstāvniecībai.
+          </p>
+          <div class="delete-modal__actions">
+            <button class="btn btn-outline-light" type="button" :disabled="isLeavingRepresentation" @click="closeLeaveRepresentationModal">Atcelt</button>
+            <button class="btn btn-primary delete-modal__confirm" type="button" :disabled="isLeavingRepresentation" @click="confirmLeaveRepresentation">
+              <span v-if="isLeavingRepresentation" class="logout-modal__spinner" aria-hidden="true"></span>
+              {{ isLeavingRepresentation ? 'Izstājas...' : 'Izstāties' }}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <Teleport to="body">

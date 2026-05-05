@@ -404,6 +404,10 @@ function formatPendingExerciseDate(value: string) {
   return formatDateTime(value)
 }
 
+function formatPendingExerciseRequestType(exercise: PendingExercise) {
+  return exercise.requestType === 'EditDescription' ? 'Apraksta labojums' : 'Jauns uzdevums'
+}
+
 async function loadUsers() {
   adminError.value = ''
   isLoadingUsers.value = true
@@ -1292,7 +1296,13 @@ function isCurrentUser(user: AuthUser) {
                     <div class="admin-user-cell">
                       <strong>{{ getDisplayName(user) }}</strong>
                       <span>{{ user.email }}</span>
-                      <small v-if="getUsername(user)">@{{ getUsername(user) }}</small>
+                      <router-link
+                        v-if="getUsername(user)"
+                        class="admin-inline-link"
+                        :to="{ name: 'public-profile', params: { username: getUsername(user) } }"
+                      >
+                        @{{ getUsername(user) }}
+                      </router-link>
                       <small v-else class="admin-user-cell__missing">Lietotājvārds nav ielādēts</small>
                     </div>
                   </td>
@@ -1301,7 +1311,16 @@ function isCurrentUser(user: AuthUser) {
                       {{ user.role }}
                     </span>
                   </td>
-                  <td>{{ user.representation || 'Nav norādīta' }}</td>
+                  <td>
+                    <router-link
+                      v-if="user.representation"
+                      class="admin-inline-link admin-inline-link--strong"
+                      :to="{ name: 'representation-detail', params: { name: user.representation } }"
+                    >
+                      {{ user.representation }}
+                    </router-link>
+                    <span v-else>Nav norādīta</span>
+                  </td>
                   <td>{{ user.rating }}</td>
                   <td>{{ formatDateTime(user.createdAtUtc) }}</td>
                   <td>
@@ -1445,14 +1464,6 @@ function isCurrentUser(user: AuthUser) {
       </div>
 
       <div v-if="activeSection === 'editRequests'">
-        <div class="admin-toolbar admin-toolbar--requests mb-3">
-          <select v-model="theoryEditStatusFilter" class="form-select auth-input">
-            <option value="">Visi pieprasījumi</option>
-            <option value="Pending">Gaida</option>
-            <option value="Approved">Apstiprināti</option>
-            <option value="Rejected">Noraidīti</option>
-          </select>
-        </div>
         <div class="admin-status-summary mb-3" aria-label="Rediģēšanas pieprasījumu statistika">
           <button class="admin-status-badge admin-status-badge--all" :class="{ active: theoryEditStatusFilter === '' }" type="button" @click="theoryEditStatusFilter = ''">
             <span>Visi</span>
@@ -1590,17 +1601,6 @@ function isCurrentUser(user: AuthUser) {
       </div>
 
       <div v-if="activeSection === 'exerciseRequests'">
-        <div class="admin-toolbar admin-toolbar--requests mb-3">
-          <select
-            v-model="pendingExerciseStatusFilter"
-            class="form-select auth-input"
-          >
-            <option value="">Visi pieprasījumi</option>
-            <option value="Pending">Gaida</option>
-            <option value="Approved">Apstiprināti</option>
-            <option value="Rejected">Noraidīti</option>
-          </select>
-        </div>
         <div class="admin-status-summary mb-3" aria-label="Uzdevumu pieprasījumu statistika">
           <button class="admin-status-badge admin-status-badge--all" :class="{ active: pendingExerciseStatusFilter === '' }" type="button" @click="pendingExerciseStatusFilter = ''">
             <span>Visi</span>
@@ -1650,9 +1650,17 @@ function isCurrentUser(user: AuthUser) {
                     </div>
                   </td>
                   <td>
-                    <div class="admin-user-cell">
+                    <div class="admin-user-cell admin-exercise-request-cell">
                       <strong>{{ exercise.title }}</strong>
-                      <small>{{ exercise.description }}</small>
+                      <span
+                        class="admin-role-pill admin-exercise-request-type"
+                        :class="exercise.requestType === 'EditDescription' ? 'admin-role-pill--audzeknis' : 'admin-role-pill--pedagogs'"
+                      >
+                        {{ formatPendingExerciseRequestType(exercise) }}
+                      </span>
+                      <small v-if="exercise.requestType !== 'EditDescription'" class="admin-exercise-request-description">
+                        {{ exercise.description }}
+                      </small>
                     </div>
                   </td>
                   <td>
@@ -1665,7 +1673,7 @@ function isCurrentUser(user: AuthUser) {
                       {{ exercise.difficulty }}
                     </span>
                   </td>
-                  <td>{{ exercise.testCases.length }}</td>
+                  <td>{{ exercise.requestType === 'EditDescription' ? '—' : exercise.testCases.length }}</td>
                   <td>
                     <span
                       class="admin-request-status"
@@ -1724,14 +1732,6 @@ function isCurrentUser(user: AuthUser) {
       </div>
 
       <div v-if="activeSection === 'roleRequests'">
-        <div class="admin-toolbar admin-toolbar--requests mb-3">
-          <select v-model="roleRequestStatusFilter" class="form-select auth-input">
-            <option value="">Visi pieprasījumi</option>
-            <option value="Pending">Gaida</option>
-            <option value="Approved">Apstiprināti</option>
-            <option value="Rejected">Noraidīti</option>
-          </select>
-        </div>
         <div class="admin-status-summary mb-3" aria-label="Lomu pieprasījumu statistika">
           <button class="admin-status-badge admin-status-badge--all" :class="{ active: roleRequestStatusFilter === '' }" type="button" @click="roleRequestStatusFilter = ''">
             <span>Visi</span>
@@ -2046,6 +2046,15 @@ function isCurrentUser(user: AuthUser) {
     <div v-if="isRepresentationDeleteModalOpen" class="app-modal-backdrop" @click.self="closeRepresentationDeleteModal">
       <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
         <div class="card-body p-3 p-lg-4">
+          <div class="delete-modal__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
+          </div>
           <h2 class="section-heading delete-modal__title mb-3">{{ selectedRepresentation?.name }}</h2>
           <p class="delete-modal__text mb-4">
             Pārstāvniecība, tās dalībnieku piesaiste un gaidošie pieprasījumi tiks dzēsti.
@@ -2148,9 +2157,111 @@ function isCurrentUser(user: AuthUser) {
       </div>
     </div>
 
+    <div v-if="selectedPendingExercise" class="app-modal-backdrop" @click.self="selectedPendingExercise = null">
+      <div class="app-modal app-modal--lg card border-primary-subtle">
+        <div class="card-body p-3 p-lg-4">
+          <div class="admin-request-detail-header mb-3">
+            <div>
+              <p class="section-kicker mb-2">{{ formatPendingExerciseRequestType(selectedPendingExercise) }}</p>
+              <h2 class="section-heading mb-1">{{ selectedPendingExercise.title }}</h2>
+              <span
+                class="admin-request-status"
+                :class="`admin-request-status--${selectedPendingExercise.status.toLowerCase()}`"
+              >
+                {{ selectedPendingExercise.status === 'Approved' ? 'Apstiprināts'
+                   : selectedPendingExercise.status === 'Rejected' ? 'Noraidīts'
+                   : 'Gaida' }}
+              </span>
+            </div>
+            <div class="admin-request-detail-meta">
+              <span class="ex-language-tag">{{ selectedPendingExercise.languageCode }} {{ selectedPendingExercise.languageVersion }}</span>
+              <span class="ex-diff-badge" :class="`diff-${selectedPendingExercise.difficulty.toLowerCase()}`">
+                {{ selectedPendingExercise.difficulty }}
+              </span>
+            </div>
+          </div>
+
+          <div class="admin-request-detail-grid mb-3">
+            <div>
+              <small class="text-secondary">Autors</small>
+              <p class="mb-0 fw-semibold">{{ selectedPendingExercise.authorName || 'Nezināms autors' }}</p>
+              <small>{{ selectedPendingExercise.authorEmail }}</small>
+            </div>
+            <div>
+              <small class="text-secondary">Iesniegts</small>
+              <p class="mb-0">{{ formatPendingExerciseDate(selectedPendingExercise.createdAtUtc) }}</p>
+            </div>
+            <div v-if="selectedPendingExercise.requestType !== 'EditDescription'">
+              <small class="text-secondary">Testi</small>
+              <p class="mb-0">{{ selectedPendingExercise.testCases.length }}</p>
+            </div>
+          </div>
+
+          <div class="admin-request-detail-section mb-3">
+            <small class="text-secondary">
+              {{ selectedPendingExercise.requestType === 'EditDescription' ? 'Piedāvātais apraksta labojums' : 'Apraksts' }}
+            </small>
+            <p class="admin-request-detail-description mb-0">{{ selectedPendingExercise.description }}</p>
+          </div>
+
+          <div v-if="selectedPendingExercise.requestType !== 'EditDescription'" class="admin-request-detail-section mb-3">
+            <small class="text-secondary">Testu piemēri</small>
+            <div v-if="selectedPendingExercise.testCases.length" class="admin-test-preview-list mt-2">
+              <article
+                v-for="testCase in selectedPendingExercise.testCases.slice(0, 4)"
+                :key="testCase.orderIndex"
+                class="admin-test-preview"
+              >
+                <strong>Tests {{ testCase.orderIndex + 1 }}{{ testCase.isHidden ? ' · slēpts' : '' }}</strong>
+                <div>
+                  <span>Ievaddati</span>
+                  <pre>{{ testCase.input }}</pre>
+                </div>
+                <div>
+                  <span>Izvaddati</span>
+                  <pre>{{ testCase.expectedOutput }}</pre>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-light" type="button" @click="selectedPendingExercise = null">Aizvērt</button>
+            <template v-if="selectedPendingExercise.status === 'Pending'">
+              <button
+                class="btn btn-outline-danger"
+                type="button"
+                :disabled="isReviewingPendingExercise"
+                @click="rejectPendingExerciseRequest(selectedPendingExercise)"
+              >
+                Noraidīt
+              </button>
+              <button
+                class="btn btn-primary"
+                type="button"
+                :disabled="isReviewingPendingExercise"
+                @click="approvePendingExerciseRequest(selectedPendingExercise)"
+              >
+                Apstiprināt
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="isDeleteModalOpen" class="app-modal-backdrop" @click.self="closeDeleteModal">
       <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
         <div class="card-body p-3 p-lg-4">
+          <div class="delete-modal__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
+          </div>
           <h2 class="section-heading delete-modal__title mb-3">{{ selectedUser ? getDisplayName(selectedUser) : '' }}</h2>
           <p class="delete-modal__text mb-4">
             Lietotāja konts un aktīvās sesijas tiks dzēstas.

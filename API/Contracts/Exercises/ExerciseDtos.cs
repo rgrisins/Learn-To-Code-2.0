@@ -22,7 +22,8 @@ public record ExerciseDetailDto(
     string LanguageCode,
     string LanguageVersion,
     IEnumerable<ExerciseTestCaseDto> VisibleTestCases,
-    bool IsSolved
+    bool IsSolved,
+    bool HasPendingDescriptionEditRequest
 );
 
 public record ExerciseTestCaseDto(
@@ -93,6 +94,10 @@ public record CreateExerciseRequest(
     IEnumerable<CreateTestCaseRequest> TestCases
 );
 
+public record UpdateExerciseDescriptionRequest(
+    string Description
+);
+
 public record CreateTestCaseRequest(
     string Input,
     string ExpectedOutput,
@@ -102,6 +107,8 @@ public record CreateTestCaseRequest(
 
 public record ExercisePendingDto(
     int Id,
+    string RequestType,
+    int? ExerciseId,
     string Title,
     string Description,
     string Difficulty,

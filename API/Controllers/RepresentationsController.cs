@@ -415,6 +415,7 @@ public class RepresentationsController : ControllerBase
             Role = RepresentationMemberRole.Member,
             JoinedAtUtc = DateTime.UtcNow,
         });
+        await DeletePendingJoinRequestsForUserAsync(user.Id, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(user.Representation))
         {
@@ -489,9 +490,7 @@ public class RepresentationsController : ControllerBase
 
         if (hasOtherMembership)
         {
-            request.Status = RepresentationJoinRequestStatus.Rejected;
-            request.ResolvedAtUtc = DateTime.UtcNow;
-            request.ResolvedByUserId = userId.Value;
+            _dbContext.RepresentationJoinRequests.Remove(request);
             await _dbContext.SaveChangesAsync(cancellationToken);
             return Conflict(new { message = "Lietotājs jau ir citā pārstāvniecībā." });
         }
@@ -520,6 +519,7 @@ public class RepresentationsController : ControllerBase
         request.Status = RepresentationJoinRequestStatus.Approved;
         request.ResolvedAtUtc = DateTime.UtcNow;
         request.ResolvedByUserId = userId.Value;
+        await DeletePendingJoinRequestsForUserAsync(request.UserId, cancellationToken, request.Id);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -695,6 +695,22 @@ public class RepresentationsController : ControllerBase
                 membership.UserId == userId &&
                 membership.Role == RepresentationMemberRole.Owner,
                 cancellationToken);
+    }
+
+    private async Task DeletePendingJoinRequestsForUserAsync(int userId, CancellationToken cancellationToken, int? exceptRequestId = null)
+    {
+        var query = _dbContext.RepresentationJoinRequests
+            .Where(request =>
+                request.UserId == userId &&
+                request.Status == RepresentationJoinRequestStatus.Pending);
+
+        if (exceptRequestId is int requestId)
+        {
+            query = query.Where(request => request.Id != requestId);
+        }
+
+        var pendingRequests = await query.ToListAsync(cancellationToken);
+        _dbContext.RepresentationJoinRequests.RemoveRange(pendingRequests);
     }
 
     [HttpDelete("{id:int}/leave")]

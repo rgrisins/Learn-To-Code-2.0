@@ -287,15 +287,28 @@ async function submitRegistration() {
 </script>
 
 <template>
-  <section class="auth-shell card border-primary-subtle">
+  <section class="auth-shell auth-shell--register card border-primary-subtle">
     <div class="card-body p-3 p-lg-4 p-xl-5">
-      <h1 class="section-heading mb-3">Izveidot lietotāju</h1>
+      <div class="auth-header">
+        <span class="page-title-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <line x1="19" y1="8" x2="19" y2="14" />
+            <line x1="22" y1="11" x2="16" y2="11" />
+          </svg>
+        </span>
+        <div class="auth-header__copy">
+          <h1 class="section-heading mb-0">Izveidot lietotāju</h1>
+          <p class="mb-0">Pievienojies LearnToCode un seko savam progresam vienuviet.</p>
+        </div>
+      </div>
 
       <div v-if="errorMessage" class="alert alert-danger">
         {{ errorMessage }}
       </div>
 
-      <form class="row g-3" novalidate @submit.prevent="handleSubmit">
+      <form class="auth-form row g-3" novalidate @submit.prevent="handleSubmit">
         <div class="col-12">
           <label class="form-label" for="username">Lietotājvārds</label>
           <input id="username" v-model="form.username" type="text" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!errors.username }" />

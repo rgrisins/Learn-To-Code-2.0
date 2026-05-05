@@ -43,7 +43,7 @@ const sections = computed<SidebarSection[]>(() => [
     ? [{
         label: 'Pārstāvniecības',
         to: '/representations',
-        description: 'Grupas, dalība un kopējā statistika',
+        description: 'Komandas un dalībnieki',
         icon: 'users',
       }]
     : []),

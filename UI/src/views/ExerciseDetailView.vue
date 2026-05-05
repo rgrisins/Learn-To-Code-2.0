@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
-import { isAuthenticated } from '../services/auth'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { hasAnyRole, isAuthenticated } from '../services/auth'
 import {
+  deleteExercise,
   getExercise,
+  requestExerciseDescriptionEdit,
   submitCodeWithProgress,
   type ExerciseDetail,
   type SubmissionProgressEvent,
@@ -11,6 +13,7 @@ import {
 } from '../services/exercises'
 
 const route = useRoute()
+const router = useRouter()
 const id = parseInt(route.params.id as string)
 
 const exercise = ref<ExerciseDetail | null>(null)
@@ -28,6 +31,17 @@ const isSubmitLockedUntilRefresh = ref(false)
 const codeEditorRef = ref<HTMLTextAreaElement | null>(null)
 const codeGutterRef = ref<HTMLDivElement | null>(null)
 const codeHighlightRef = ref<HTMLPreElement | null>(null)
+const isEditDescriptionModalOpen = ref(false)
+const editDescription = ref('')
+const editDescriptionError = ref<string | null>(null)
+const editDescriptionNotice = ref<string | null>(null)
+const isSendingEditDescriptionRequest = ref(false)
+const isDeleteExerciseModalOpen = ref(false)
+const deleteExerciseError = ref<string | null>(null)
+const isDeletingExercise = ref(false)
+
+const canRequestExerciseEdit = computed(() => hasAnyRole(['Pedagogs', 'Administrators']))
+const canDeleteExercise = computed(() => hasAnyRole(['Administrators']))
 
 const editorLanguageVersions = {
   python: '3.11',
@@ -156,6 +170,78 @@ async function handleSubmit() {
     submitError.value = e.message ?? 'Neizdevās iesniegt kodu.'
   } finally {
     submitting.value = false
+  }
+}
+
+function openEditDescriptionModal() {
+  if (!exercise.value || !canRequestExerciseEdit.value) return
+  editDescription.value = exercise.value.description
+  editDescriptionError.value = null
+  editDescriptionNotice.value = null
+  isEditDescriptionModalOpen.value = true
+}
+
+function closeEditDescriptionModal() {
+  if (isSendingEditDescriptionRequest.value) return
+  isEditDescriptionModalOpen.value = false
+}
+
+async function submitDescriptionEditRequest() {
+  if (!exercise.value || isSendingEditDescriptionRequest.value) return
+
+  const description = editDescription.value.trim()
+  editDescriptionError.value = null
+  editDescriptionNotice.value = null
+
+  if (!description) {
+    editDescriptionError.value = 'Apraksts nedrīkst būt tukšs.'
+    return
+  }
+
+  if (description === exercise.value.description.trim()) {
+    editDescriptionError.value = 'Apraksts nav mainīts.'
+    return
+  }
+
+  isSendingEditDescriptionRequest.value = true
+  try {
+    await requestExerciseDescriptionEdit(exercise.value.id, { description })
+    exercise.value = {
+      ...exercise.value,
+      hasPendingDescriptionEditRequest: true,
+    }
+    editDescriptionNotice.value = 'Pieprasījums nosūtīts administratoram.'
+    isEditDescriptionModalOpen.value = false
+  } catch (error) {
+    editDescriptionError.value = error instanceof Error ? error.message : 'Neizdevās nosūtīt labojuma pieprasījumu.'
+  } finally {
+    isSendingEditDescriptionRequest.value = false
+  }
+}
+
+function openDeleteExerciseModal() {
+  if (!exercise.value || !canDeleteExercise.value) return
+  deleteExerciseError.value = null
+  isDeleteExerciseModalOpen.value = true
+}
+
+function closeDeleteExerciseModal() {
+  if (isDeletingExercise.value) return
+  isDeleteExerciseModalOpen.value = false
+}
+
+async function confirmDeleteExercise() {
+  if (!exercise.value || isDeletingExercise.value) return
+
+  isDeletingExercise.value = true
+  deleteExerciseError.value = null
+  try {
+    await deleteExercise(exercise.value.id)
+    await router.push({ name: 'exercises' })
+  } catch (error) {
+    deleteExerciseError.value = error instanceof Error ? error.message : 'Neizdevās dzēst uzdevumu.'
+  } finally {
+    isDeletingExercise.value = false
   }
 }
 
@@ -387,7 +473,7 @@ const samplePairs = computed<SamplePair[]>(() => {
         :class="{ 'theory-list-item--done': isSolvedNow }"
       >
         <div class="card-body p-3 p-lg-4">
-          <div class="theory-header exercises-header">
+          <div class="theory-header exercises-header exercise-detail-header">
             <span class="page-title-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="16 18 22 12 16 6" />
@@ -406,6 +492,25 @@ const samplePairs = computed<SamplePair[]>(() => {
               </span>
               <span class="ex-language-chip">Ieteikts: {{ languageLabel(exercise.languageCode, exercise.languageVersion) }}</span>
             </div>
+            <div v-if="canRequestExerciseEdit || canDeleteExercise" class="theory-header__actions exercise-detail-actions">
+              <button
+                v-if="canRequestExerciseEdit"
+                class="btn btn-theory-edit btn-sm"
+                type="button"
+                :disabled="exercise.hasPendingDescriptionEditRequest"
+                @click="openEditDescriptionModal"
+              >
+                {{ exercise.hasPendingDescriptionEditRequest ? 'Labojums nosūtīts' : 'Rediģēt aprakstu' }}
+              </button>
+              <button
+                v-if="canDeleteExercise"
+                class="btn btn-theory-delete btn-sm"
+                type="button"
+                @click="openDeleteExerciseModal"
+              >
+                Dzēst
+              </button>
+            </div>
           </div>
         </div>
       </article>
@@ -413,8 +518,9 @@ const samplePairs = computed<SamplePair[]>(() => {
       <article class="content-panel card border-primary-subtle mb-3">
         <div class="card-body p-3 p-lg-4">
           <p class="ex-description mb-0">{{ exercise.description }}</p>
+          <hr v-if="samplePairs.length" class="exercise-description-divider" />
 
-          <div v-if="samplePairs.length" class="ex-samples mt-3">
+          <div v-if="samplePairs.length" class="ex-samples">
             <section v-for="pair in samplePairs" :key="pair.title" class="ex-sample">
               <div class="ex-sample__title">{{ pair.title }}</div>
 
@@ -586,5 +692,64 @@ const samplePairs = computed<SamplePair[]>(() => {
         </div>
       </article>
     </template>
+
+    <div v-if="isEditDescriptionModalOpen" class="app-modal-backdrop" @click.self="closeEditDescriptionModal">
+      <div class="app-modal app-modal--sm card border-primary-subtle" role="dialog" aria-modal="true" aria-labelledby="editExerciseDescriptionTitle">
+        <div class="card-body p-3 p-lg-4">
+          <h2 id="editExerciseDescriptionTitle" class="section-heading section-heading--caps mb-3">Mainīt aprakstu</h2>
+          <p class="text-secondary mb-3">
+            Tiks nosūtīts pieprasījums administratoram. Šeit var mainīt tikai uzdevuma aprakstu.
+          </p>
+
+          <label class="representation-field">
+            <span class="representation-field__label">Apraksts</span>
+            <textarea
+              v-model="editDescription"
+              class="form-control auth-input"
+              rows="7"
+              maxlength="4000"
+            ></textarea>
+          </label>
+
+          <div v-if="editDescriptionError" class="alert alert-danger mt-3 mb-0">{{ editDescriptionError }}</div>
+          <div v-if="editDescriptionNotice" class="alert alert-success mt-3 mb-0">{{ editDescriptionNotice }}</div>
+
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-outline-light" type="button" :disabled="isSendingEditDescriptionRequest" @click="closeEditDescriptionModal">Atcelt</button>
+            <button class="btn btn-primary" type="button" :disabled="isSendingEditDescriptionRequest" @click="submitDescriptionEditRequest">
+              {{ isSendingEditDescriptionRequest ? 'Sūta...' : 'Nosūtīt pieprasījumu' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="isDeleteExerciseModalOpen" class="app-modal-backdrop" @click.self="closeDeleteExerciseModal">
+      <div class="app-modal app-modal--sm card border-primary-subtle delete-modal" role="dialog" aria-modal="true" aria-labelledby="deleteExerciseTitle">
+        <div class="card-body p-3 p-lg-4">
+          <div class="delete-modal__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v5" />
+              <path d="M14 11v5" />
+            </svg>
+          </div>
+          <h2 id="deleteExerciseTitle" class="section-heading delete-modal__title mb-3">Dzēst uzdevumu?</h2>
+          <p class="delete-modal__text mb-4">
+            “{{ exercise?.title }}” un visi iesniegumi šim uzdevumam tiks dzēsti.
+          </p>
+          <div v-if="deleteExerciseError" class="alert alert-danger mb-3">{{ deleteExerciseError }}</div>
+          <div class="delete-modal__actions">
+            <button class="btn btn-outline-light" type="button" :disabled="isDeletingExercise" @click="closeDeleteExerciseModal">Atcelt</button>
+            <button class="btn btn-primary delete-modal__confirm" type="button" :disabled="isDeletingExercise" @click="confirmDeleteExercise">
+              <span v-if="isDeletingExercise" class="logout-modal__spinner" aria-hidden="true"></span>
+              {{ isDeletingExercise ? 'Dzēš...' : 'Dzēst' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

@@ -13,8 +13,16 @@ import { createRoleRequest, getMyRoleRequests, type RoleRequest } from '../servi
 import algoritmiLogo from '../assets/algoritmi.png'
 import BirthDatePicker from '../components/BirthDatePicker.vue'
 
+const DATABASE_TITLES = new Set(['mysql', 'mongodb'])
+const DATABASE_IMAGE_URLS: Record<string, string> = {
+  mysql: '/theory/mysql.png',
+  mongodb: '/theory/mongodb.png',
+}
+
 function getLanguageImageUrl(language: { languageId: string; title: string }): string {
-  if (language.title.trim().toLowerCase() === 'algoritmi') return algoritmiLogo
+  const normalizedTitle = normalizeTheoryTitle(language.title)
+  if (normalizedTitle === 'algoritmi') return algoritmiLogo
+  if (DATABASE_IMAGE_URLS[normalizedTitle]) return DATABASE_IMAGE_URLS[normalizedTitle]
   return `/theory/${language.languageId.toLowerCase()}.png`
 }
 
@@ -51,7 +59,6 @@ const editForm = reactive({
   firstName: '',
   lastName: '',
   birthDate: '',
-  representation: '',
   bio: '',
   currentPassword: '',
   newPassword: '',
@@ -63,7 +70,6 @@ const editErrors = reactive({
   firstName: '',
   lastName: '',
   birthDate: '',
-  representation: '',
   bio: '',
   currentPassword: '',
   newPassword: '',
@@ -78,16 +84,40 @@ const pendingPedagogRequest = computed(() =>
 )
 const canRequestPedagog = computed(() => user.value?.role === 'Audzeknis' && !pendingPedagogRequest.value)
 
+function normalizeTheoryTitle(title: string) {
+  return title.trim().toLowerCase()
+}
+
+function isDatabaseTheory(language: { title: string }) {
+  return DATABASE_TITLES.has(normalizeTheoryTitle(language.title))
+}
+
+function isAlgorithmTheory(language: { title: string }) {
+  return normalizeTheoryTitle(language.title) === 'algoritmi'
+}
+
 const sortedTheoryLanguages = computed(() => {
   const list = profileStats.value?.theoryLanguages ?? []
   return [...list].sort((a, b) => {
-    const aIsAlgo = a.title.trim().toLowerCase() === 'algoritmi'
-    const bIsAlgo = b.title.trim().toLowerCase() === 'algoritmi'
+    const aIsAlgo = normalizeTheoryTitle(a.title) === 'algoritmi'
+    const bIsAlgo = normalizeTheoryTitle(b.title) === 'algoritmi'
     if (aIsAlgo && !bIsAlgo) return -1
     if (!aIsAlgo && bIsAlgo) return 1
     return 0
   })
 })
+
+const profileAlgorithmTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => isAlgorithmTheory(language)),
+)
+
+const profileProgrammingTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => !isAlgorithmTheory(language) && !isDatabaseTheory(language)),
+)
+
+const profileDatabaseTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => isDatabaseTheory(language)),
+)
 
 onMounted(() => {
   void loadRoleRequests()
@@ -136,7 +166,6 @@ function validateEditForm() {
   const username = editForm.username.trim()
   const firstName = editForm.firstName.trim()
   const lastName = editForm.lastName.trim()
-  const representation = editForm.representation.trim()
 
   if (!username) {
     editErrors.username = 'Lietotājvārds ir obligāts.'
@@ -150,10 +179,6 @@ function validateEditForm() {
 
   if (!lastName) {
     editErrors.lastName = 'Uzvārds ir obligāts.'
-  }
-
-  if (representation && representation.length > 120) {
-    editErrors.representation = 'Pārstāvniecības nosaukums ir par garu.'
   }
 
   if (editForm.bio.length > 500) {
@@ -230,7 +255,6 @@ function openEditModal() {
   editForm.firstName = currentUser.firstName || ''
   editForm.lastName = currentUser.lastName || ''
   editForm.birthDate = currentUser.birthDate || ''
-  editForm.representation = currentUser.representation || ''
   editForm.bio = currentUser.bio || ''
   editForm.currentPassword = ''
   editForm.newPassword = ''
@@ -259,7 +283,7 @@ async function saveProfile() {
       firstName: editForm.firstName.trim(),
       lastName: editForm.lastName.trim(),
       birthDate: editForm.birthDate || null,
-      representation: editForm.representation.trim() || null,
+      representation: user.value?.representation ?? null,
       bio: editForm.bio.trim() || null,
       currentPassword: wantsPasswordChange ? editForm.currentPassword : null,
       newPassword: wantsPasswordChange ? editForm.newPassword : null,
@@ -409,27 +433,84 @@ async function confirmLogout() {
 
             <div v-if="isLoadingProfileStats" class="profile-progress-empty">Ielādē statistiku...</div>
             <div v-else-if="profileStatsError" class="profile-progress-empty">{{ profileStatsError }}</div>
-            <div v-else-if="sortedTheoryLanguages.length" class="profile-progress-list">
-              <div
-                v-for="language in sortedTheoryLanguages"
-                :key="language.languageId"
-                class="profile-progress-item"
-              >
-                <div class="profile-progress-item__top">
-                  <img
-                    class="profile-progress-item__icon"
-                    :src="getLanguageImageUrl(language)"
-                    :alt="language.title"
-                  />
-                  <div class="profile-progress-item__title">
-                    <strong>{{ language.title }}</strong>
+            <div v-else-if="sortedTheoryLanguages.length" class="profile-progress-list profile-progress-list--theory">
+              <section v-if="profileAlgorithmTheory.length" class="profile-theory-group">
+                <div class="profile-theory-group__header">
+                  <span>Algoritmi</span>
+                </div>
+                <div
+                  v-for="language in profileAlgorithmTheory"
+                  :key="language.languageId"
+                  class="profile-progress-item"
+                >
+                  <div class="profile-progress-item__top">
+                    <img
+                      class="profile-progress-item__icon"
+                      :src="getLanguageImageUrl(language)"
+                      :alt="language.title"
+                    />
+                    <div class="profile-progress-item__title">
+                      <strong>{{ language.title }}</strong>
+                    </div>
+                    <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
                   </div>
-                  <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                  <div class="profile-progress-track" aria-hidden="true">
+                    <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                  </div>
                 </div>
-                <div class="profile-progress-track" aria-hidden="true">
-                  <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+              </section>
+
+              <section v-if="profileProgrammingTheory.length" class="profile-theory-group">
+                <div class="profile-theory-group__header">
+                  <span>Programmēšana</span>
                 </div>
-              </div>
+                <div
+                  v-for="language in profileProgrammingTheory"
+                  :key="language.languageId"
+                  class="profile-progress-item"
+                >
+                  <div class="profile-progress-item__top">
+                    <img
+                      class="profile-progress-item__icon"
+                      :src="getLanguageImageUrl(language)"
+                      :alt="language.title"
+                    />
+                    <div class="profile-progress-item__title">
+                      <strong>{{ language.title }}</strong>
+                    </div>
+                    <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                  </div>
+                  <div class="profile-progress-track" aria-hidden="true">
+                    <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                  </div>
+                </div>
+              </section>
+
+              <section v-if="profileDatabaseTheory.length" class="profile-theory-group">
+                <div class="profile-theory-group__header">
+                  <span>Datu bāzes</span>
+                </div>
+                <div
+                  v-for="language in profileDatabaseTheory"
+                  :key="language.languageId"
+                  class="profile-progress-item"
+                >
+                  <div class="profile-progress-item__top">
+                    <img
+                      class="profile-progress-item__icon"
+                      :src="getLanguageImageUrl(language)"
+                      :alt="language.title"
+                    />
+                    <div class="profile-progress-item__title">
+                      <strong>{{ language.title }}</strong>
+                    </div>
+                    <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                  </div>
+                  <div class="profile-progress-track" aria-hidden="true">
+                    <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                  </div>
+                </div>
+              </section>
             </div>
             <div v-else class="profile-progress-list">
               <div class="profile-progress-item">
@@ -451,7 +532,7 @@ async function confirmLogout() {
             </div>
           </section>
 
-          <section class="profile-progress-panel">
+          <section class="profile-progress-panel profile-progress-panel--tasks">
             <div class="profile-progress-panel__header">
               <h2>Uzdevumi</h2>
               <span>{{ profileStats?.exerciseCompletionPercent ?? 0 }}% izpildīti</span>
@@ -561,12 +642,6 @@ async function confirmLogout() {
                 @update:error="editErrors.birthDate = $event"
               />
               <div v-if="editErrors.birthDate" class="invalid-feedback d-block">{{ editErrors.birthDate }}</div>
-            </div>
-
-            <div class="col-12 col-lg-6">
-              <label class="form-label" for="editRepresentation">Pārstāvniecība <span class="text-secondary">(opcionāli)</span></label>
-              <input id="editRepresentation" v-model="editForm.representation" type="text" class="form-control form-control-lg auth-input" :class="{ 'is-invalid': !!editErrors.representation }" />
-              <div v-if="editErrors.representation" class="invalid-feedback d-block">{{ editErrors.representation }}</div>
             </div>
 
             <div class="col-12">

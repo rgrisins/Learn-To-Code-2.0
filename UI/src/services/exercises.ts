@@ -23,6 +23,7 @@ export interface ExerciseDetail {
   languageVersion: string
   visibleTestCases: ExerciseTestCase[]
   isSolved: boolean
+  hasPendingDescriptionEditRequest: boolean
 }
 
 export interface ExerciseTestCase {
@@ -86,6 +87,10 @@ export interface CreateExerciseRequest {
   testCases: CreateExerciseTestCase[]
 }
 
+export interface UpdateExerciseDescriptionRequest {
+  description: string
+}
+
 export interface TestCaseResult {
   orderIndex: number
   isHidden: boolean
@@ -115,6 +120,17 @@ export async function createExercise(request: CreateExerciseRequest): Promise<vo
   if (!response.ok) throw new Error(await readError(response))
 }
 
+export async function requestExerciseDescriptionEdit(
+  id: number,
+  request: UpdateExerciseDescriptionRequest,
+): Promise<void> {
+  const response = await apiRequest(`/api/exercises/${id}/description-request`, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) throw new Error(await readError(response))
+}
+
 export interface PendingExerciseTestCase {
   orderIndex: number
   isHidden: boolean
@@ -124,6 +140,8 @@ export interface PendingExerciseTestCase {
 
 export interface PendingExercise {
   id: number
+  requestType: 'Create' | 'EditDescription' | string
+  exerciseId: number | null
   title: string
   description: string
   difficulty: string
@@ -161,6 +179,11 @@ export async function approvePendingExercise(id: number): Promise<ExerciseListIt
 
 export async function rejectPendingExercise(id: number): Promise<void> {
   const response = await apiRequest(`/api/exercises/admin/${id}/reject`, { method: 'POST' })
+  if (!response.ok) throw new Error(await readError(response))
+}
+
+export async function deleteExercise(id: number): Promise<void> {
+  const response = await apiRequest(`/api/exercises/admin/exercises/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await readError(response))
 }
 

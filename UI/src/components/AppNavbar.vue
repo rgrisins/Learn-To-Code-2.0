@@ -92,7 +92,11 @@ async function confirmLogout() {
         aria-label="Pārslēgt navigāciju"
         @click="isMenuOpen = !isMenuOpen"
       >
-        <span class="navbar-toggler-icon"></span>
+        <span class="navbar-toggler-mark" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
       </button>
 
       <div class="collapse navbar-collapse" :class="{ show: isMenuOpen }">

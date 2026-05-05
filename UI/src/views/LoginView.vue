@@ -35,15 +35,27 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <section class="auth-shell card border-primary-subtle">
+  <section class="auth-shell auth-shell--login card border-primary-subtle">
     <div class="card-body p-3 p-lg-4 p-xl-5">
-      <h1 class="section-heading mb-3">Pieslēgties kontam</h1>
+      <div class="auth-header">
+        <span class="page-title-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+            <polyline points="10 17 15 12 10 7" />
+            <line x1="15" y1="12" x2="3" y2="12" />
+          </svg>
+        </span>
+        <div class="auth-header__copy">
+          <h1 class="section-heading mb-0">Pieslēgties kontam</h1>
+          <p class="mb-0">Turpini mācības, uzdevumus un progresu savā profilā.</p>
+        </div>
+      </div>
 
       <div v-if="errorMessage" class="alert alert-danger">
         {{ errorMessage }}
       </div>
 
-      <form class="row g-3" @submit.prevent="handleSubmit">
+      <form class="auth-form row g-3" @submit.prevent="handleSubmit">
         <div class="col-12">
           <label class="form-label" for="username">Lietotājvārds vai e-pasts</label>
           <input id="username" v-model="form.username" type="text" class="form-control form-control-lg auth-input" required />

@@ -7,6 +7,12 @@ public enum ExerciseRequestStatus
     Rejected,
 }
 
+public enum ExerciseRequestType
+{
+    Create,
+    EditDescription,
+}
+
 /// <summary>
 /// An exercise authored by a Pedagogs/Administrators user that is waiting for an
 /// administrator to review. Approving a request materialises an Exercise + TestCases.
@@ -15,6 +21,10 @@ public enum ExerciseRequestStatus
 public class ExerciseRequest
 {
     public int Id { get; set; }
+
+    public ExerciseRequestType RequestType { get; set; } = ExerciseRequestType.Create;
+
+    public int? ExerciseId { get; set; }
 
     public int? AuthorId { get; set; }
 

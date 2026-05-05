@@ -106,13 +106,16 @@ async function joinThis() {
 const rankInfo = computed(() => {
   const current = representation.value
   if (!current) return null
+  if (isRankingExcludedRepresentation(current)) return null
 
-  const ranked = [...allRepresentations.value].sort((first, second) => {
-    if (second.averageRating !== first.averageRating) {
-      return second.averageRating - first.averageRating
-    }
-    return second.memberCount - first.memberCount
-  })
+  const ranked = allRepresentations.value
+    .filter((item) => !isRankingExcludedRepresentation(item))
+    .sort((first, second) => {
+      if (second.averageRating !== first.averageRating) {
+        return second.averageRating - first.averageRating
+      }
+      return second.memberCount - first.memberCount
+    })
 
   if (!ranked.length) return null
 
@@ -120,6 +123,14 @@ const rankInfo = computed(() => {
   if (index < 0) return null
   return { rank: index + 1, total: ranked.length }
 })
+
+function normalizeSearch(value?: string | null) {
+  return value?.trim().toLocaleLowerCase('lv-LV') ?? ''
+}
+
+function isRankingExcludedRepresentation(item: Pick<Representation, 'name'>) {
+  return normalizeSearch(item.name) === 'learntocode'
+}
 
 function rankChipClass(index: number) {
   if (index === 0) return 'representations-stat-chip--gold'
@@ -141,10 +152,6 @@ async function loadMembers(id: number) {
 
 function getMemberName(member: RepresentationMember) {
   return member.username?.trim() || member.fullName?.trim() || `Lietotājs #${member.userId}`
-}
-
-function normalizeSearch(value?: string | null) {
-  return value?.trim().toLocaleLowerCase('lv-LV') ?? ''
 }
 
 const topMembers = computed(() => {

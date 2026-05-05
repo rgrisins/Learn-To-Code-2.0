@@ -18,7 +18,14 @@ const testPages = ref<Record<number, number>>({})
 const submissionsPerPage = 5
 const testsPerPage = 5
 
-onMounted(async () => {
+onMounted(() => {
+  void loadSubmissions()
+})
+
+async function loadSubmissions() {
+  loading.value = true
+  loadError.value = null
+
   try {
     submissions.value = await getSubmissions()
   } catch (e: any) {
@@ -26,7 +33,7 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
 
 const filteredSubmissions = computed(() => {
   let list = submissions.value
@@ -74,6 +81,7 @@ const pageSummary = computed(() => {
 
 const passedCount = computed(() => submissions.value.filter((submission) => submission.status === 'Passed').length)
 const failedCount = computed(() => submissions.value.filter((submission) => submission.status !== 'Passed').length)
+const lastSubmissionDate = computed(() => submissions.value[0]?.submittedAtUtc ?? null)
 
 watch([search, statusFilter], () => {
   currentPage.value = 1
@@ -222,11 +230,19 @@ function pagedTestResults(submission: ExerciseSubmission) {
 
         <div v-if="loading" class="submission-state">Ielādē...</div>
         <div v-else-if="loadError" class="submission-state submission-state--error">{{ loadError }}</div>
-        <div v-else-if="!filteredSubmissions.length" class="submission-state">
+        <div v-else-if="!submissions.length" class="submission-state submission-state--empty">
+          Vēl nav neviena iesnieguma.
+        </div>
+        <div v-else-if="!filteredSubmissions.length" class="submission-state submission-state--empty">
           Nav iesniegumu, kas atbilst meklēšanai.
         </div>
 
         <template v-else>
+          <div class="submissions-result-line">
+            <span>Rāda {{ pageSummary }}</span>
+            <span v-if="lastSubmissionDate">Pēdējais iesniegums: {{ formatDate(lastSubmissionDate) }}</span>
+          </div>
+
           <div class="submissions-list">
             <article
               v-for="submission in pagedSubmissions"

@@ -4,8 +4,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { authState, getPublicUserProfile, type PublicUserProfile } from '../services/auth'
 import algoritmiLogo from '../assets/algoritmi.png'
 
+const DATABASE_TITLES = new Set(['mysql', 'mongodb'])
+const DATABASE_IMAGE_URLS: Record<string, string> = {
+  mysql: '/theory/mysql.png',
+  mongodb: '/theory/mongodb.png',
+}
+
 function getLanguageImageUrl(language: { languageId: string; title: string }): string {
-  if (language.title.trim().toLowerCase() === 'algoritmi') return algoritmiLogo
+  const normalizedTitle = normalizeTheoryTitle(language.title)
+  if (normalizedTitle === 'algoritmi') return algoritmiLogo
+  if (DATABASE_IMAGE_URLS[normalizedTitle]) return DATABASE_IMAGE_URLS[normalizedTitle]
   return `/theory/${language.languageId.toLowerCase()}.png`
 }
 
@@ -17,8 +25,16 @@ function getExerciseLanguageImageUrl(languageCode?: string | null): string {
 
 const ALGORITHM_TITLES = new Set(['algoritmi'])
 
+function normalizeTheoryTitle(title: string) {
+  return title.trim().toLowerCase()
+}
+
 function isAlgorithmCategory(language: { title: string }) {
-  return ALGORITHM_TITLES.has(language.title.trim().toLowerCase())
+  return ALGORITHM_TITLES.has(normalizeTheoryTitle(language.title))
+}
+
+function isDatabaseCategory(language: { title: string }) {
+  return DATABASE_TITLES.has(normalizeTheoryTitle(language.title))
 }
 
 const route = useRoute()
@@ -46,6 +62,18 @@ const sortedTheoryLanguages = computed(() => {
     return 0
   })
 })
+
+const profileAlgorithmTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => isAlgorithmCategory(language)),
+)
+
+const profileProgrammingTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => !isAlgorithmCategory(language) && !isDatabaseCategory(language)),
+)
+
+const profileDatabaseTheory = computed(() =>
+  sortedTheoryLanguages.value.filter((language) => isDatabaseCategory(language)),
+)
 
 onMounted(loadProfile)
 watch(profileUsername, () => {
@@ -167,27 +195,84 @@ function formatDate(value: string) {
                 <h2>Teorija</h2>
               </div>
 
-              <div v-if="sortedTheoryLanguages.length" class="profile-progress-list">
-                <div
-                  v-for="language in sortedTheoryLanguages"
-                  :key="language.languageId"
-                  class="profile-progress-item"
-                >
-                  <div class="profile-progress-item__top">
-                    <img
-                      class="profile-progress-item__icon"
-                      :src="getLanguageImageUrl(language)"
-                      :alt="language.title"
-                    />
-                    <div class="profile-progress-item__title">
-                      <strong>{{ language.title }}</strong>
+              <div v-if="sortedTheoryLanguages.length" class="profile-progress-list profile-progress-list--theory">
+                <section v-if="profileAlgorithmTheory.length" class="profile-theory-group">
+                  <div class="profile-theory-group__header">
+                    <span>Algoritmi</span>
+                  </div>
+                  <div
+                    v-for="language in profileAlgorithmTheory"
+                    :key="language.languageId"
+                    class="profile-progress-item"
+                  >
+                    <div class="profile-progress-item__top">
+                      <img
+                        class="profile-progress-item__icon"
+                        :src="getLanguageImageUrl(language)"
+                        :alt="language.title"
+                      />
+                      <div class="profile-progress-item__title">
+                        <strong>{{ language.title }}</strong>
+                      </div>
+                      <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
                     </div>
-                    <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                    <div class="profile-progress-track" aria-hidden="true">
+                      <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                    </div>
                   </div>
-                  <div class="profile-progress-track" aria-hidden="true">
-                    <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                </section>
+
+                <section v-if="profileProgrammingTheory.length" class="profile-theory-group">
+                  <div class="profile-theory-group__header">
+                    <span>Programmēšana</span>
                   </div>
-                </div>
+                  <div
+                    v-for="language in profileProgrammingTheory"
+                    :key="language.languageId"
+                    class="profile-progress-item"
+                  >
+                    <div class="profile-progress-item__top">
+                      <img
+                        class="profile-progress-item__icon"
+                        :src="getLanguageImageUrl(language)"
+                        :alt="language.title"
+                      />
+                      <div class="profile-progress-item__title">
+                        <strong>{{ language.title }}</strong>
+                      </div>
+                      <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                    </div>
+                    <div class="profile-progress-track" aria-hidden="true">
+                      <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                    </div>
+                  </div>
+                </section>
+
+                <section v-if="profileDatabaseTheory.length" class="profile-theory-group">
+                  <div class="profile-theory-group__header">
+                    <span>Datu bāzes</span>
+                  </div>
+                  <div
+                    v-for="language in profileDatabaseTheory"
+                    :key="language.languageId"
+                    class="profile-progress-item"
+                  >
+                    <div class="profile-progress-item__top">
+                      <img
+                        class="profile-progress-item__icon"
+                        :src="getLanguageImageUrl(language)"
+                        :alt="language.title"
+                      />
+                      <div class="profile-progress-item__title">
+                        <strong>{{ language.title }}</strong>
+                      </div>
+                      <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+                    </div>
+                    <div class="profile-progress-track" aria-hidden="true">
+                      <span class="profile-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+                    </div>
+                  </div>
+                </section>
               </div>
               <div v-else class="profile-progress-list">
                 <div class="profile-progress-item">
@@ -209,7 +294,7 @@ function formatDate(value: string) {
               </div>
             </section>
 
-            <section class="profile-progress-panel">
+            <section class="profile-progress-panel profile-progress-panel--tasks">
               <div class="profile-progress-panel__header">
                 <h2>Uzdevumi</h2>
                 <span>{{ profile.stats.exerciseCompletionPercent }}% izpildīti</span>

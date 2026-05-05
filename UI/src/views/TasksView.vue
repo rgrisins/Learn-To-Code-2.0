@@ -171,6 +171,14 @@ const currentLanguageLabel = computed(
   () => languageOptions.find((option) => option.code === form.languageCode)?.label ?? '',
 )
 
+const currentDifficultyLabel = computed(() => formatDifficultyLabel(form.difficulty))
+
+function formatDifficultyLabel(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return ''
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
 function createInitialTests(): BuilderTestCase[] {
   return Array.from({ length: minimumTotalTests }, () => ({
     input: '',
@@ -331,53 +339,66 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <section class="content-panel card border-primary-subtle task-builder">
-    <div class="card-body p-3 p-lg-4">
-      <div class="task-builder__header">
-        <div>
-          <h1 class="section-heading mb-2">Izveidot uzdevumu</h1>
-          <div class="task-builder__meta">
-            <span>{{ sampleTestCount }} paraugi</span>
-            <span>{{ testProgressLabel }}</span>
-            <span>{{ currentLanguageLabel }}</span>
+  <div class="task-builder">
+    <div class="mb-3">
+      <RouterLink to="/exercises" class="app-back-link">← Uzdevumu saraksts</RouterLink>
+    </div>
+
+    <article class="content-panel card border-primary-subtle mb-3">
+      <div class="card-body p-3 p-lg-4">
+        <div class="theory-header exercises-header">
+          <span class="page-title-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+          </span>
+          <div class="theory-heading-copy">
+            <h1 class="section-heading mb-0">Izveidot uzdevumu</h1>
+          </div>
+          <div class="exercises-header__badges">
+            <div class="task-builder__meta task-builder__meta--header">
+              <span>{{ currentDifficultyLabel }}</span>
+              <span>{{ testProgressLabel }}</span>
+              <span>{{ currentLanguageLabel }}</span>
+            </div>
           </div>
         </div>
-
-        <RouterLink class="btn btn-outline-light btn-sm" to="/exercises">
-          Uzdevumu saraksts
-        </RouterLink>
       </div>
+    </article>
 
-      <div v-if="submitSuccess" class="alert alert-success mb-3">
-        {{ submitSuccess }}
-      </div>
+    <div v-if="submitSuccess" class="alert alert-success mb-3">
+      {{ submitSuccess }}
+    </div>
 
-      <div v-if="submitError" class="alert alert-danger mb-3">
-        {{ submitError }}
-      </div>
+    <div v-if="submitError" class="alert alert-danger mb-3">
+      {{ submitError }}
+    </div>
 
-      <div v-if="draftRestored" class="alert alert-info task-builder__draft mb-3">
-        <span>
-          Atjaunots iepriekšējais melnraksts.
-          <span v-if="draftSavedAt"> {{ draftSavedLabel }}.</span>
-        </span>
-        <button type="button" class="btn btn-outline-light btn-sm" @click="discardDraft">
-          Sākt no jauna
-        </button>
-      </div>
+    <div v-if="draftRestored" class="alert alert-info task-builder__draft mb-3">
+      <span>
+        Atjaunots iepriekšējais melnraksts.
+        <span v-if="draftSavedAt"> {{ draftSavedLabel }}.</span>
+      </span>
+      <button type="button" class="btn btn-outline-light btn-sm" @click="discardDraft">
+        Sākt no jauna
+      </button>
+    </div>
 
-      <div v-if="validationMessages.length" class="alert alert-warning task-builder__validation mb-3">
-        <strong>Pārbaudi laukus</strong>
-        <ul>
-          <li v-for="message in validationMessages" :key="message">{{ message }}</li>
-        </ul>
-      </div>
+    <div v-if="validationMessages.length" class="alert alert-warning task-builder__validation mb-3">
+      <strong>Pārbaudi laukus</strong>
+      <ul>
+        <li v-for="message in validationMessages" :key="message">{{ message }}</li>
+      </ul>
+    </div>
 
-      <form class="task-builder__form" novalidate @submit.prevent="handleSubmit">
-        <section class="task-builder__section">
+    <form class="task-builder__form" novalidate @submit.prevent="handleSubmit">
+      <article class="content-panel card border-primary-subtle task-builder__card">
+        <div class="card-body p-3 p-lg-4">
           <div class="task-builder__section-head">
-            <h2>Pamatinformācija</h2>
+            <h2 class="section-heading section-heading--caps mb-0">Pamatinformācija</h2>
           </div>
+          <hr class="profile-section-divider" />
 
           <div class="row g-3">
             <div class="col-12 col-lg-8">
@@ -404,7 +425,7 @@ async function handleSubmit() {
                 :class="{ 'is-invalid': !!fieldErrors.difficulty }"
               >
                 <option v-for="difficulty in difficultyOptions" :key="difficulty" :value="difficulty">
-                  {{ difficulty.charAt(0).toUpperCase() + difficulty.slice(1) }}
+                  {{ formatDifficultyLabel(difficulty) }}
                 </option>
               </select>
               <div v-if="fieldErrors.difficulty" class="invalid-feedback d-block">
@@ -444,13 +465,16 @@ async function handleSubmit() {
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </article>
 
-        <section class="task-builder__section">
+      <article class="content-panel card border-primary-subtle task-builder__card">
+        <div class="card-body p-3 p-lg-4">
           <div class="task-builder__section-head">
-            <h2>Autora risinājums</h2>
-            <span class="ex-language-tag">{{ currentLanguageLabel }}</span>
+            <h2 class="section-heading section-heading--caps mb-0">Autora risinājums</h2>
+            <span class="ex-language-chip">{{ currentLanguageLabel }}</span>
           </div>
+          <hr class="profile-section-divider" />
 
           <p class="task-builder__hint">
             Izvēlies valodu, kurā uzraksti risinājumu — pirms uzdevuma saglabāšanas tas tiek
@@ -467,13 +491,16 @@ async function handleSubmit() {
           <div v-if="fieldErrors.solutionCode" class="invalid-feedback d-block">
             {{ fieldErrors.solutionCode }}
           </div>
-        </section>
+        </div>
+      </article>
 
-        <section class="task-builder__section">
+      <article class="content-panel card border-primary-subtle task-builder__card">
+        <div class="card-body p-3 p-lg-4">
           <div class="task-builder__section-head">
-            <h2>Testi</h2>
+            <h2 class="section-heading section-heading--caps mb-0">Testi</h2>
             <span class="task-test-counter">{{ testProgressLabel }}</span>
           </div>
+          <hr class="profile-section-divider" />
 
           <p class="task-builder__hint">
             Pirmie {{ sampleTestCount }} testi vienlaikus ir paraugdati — risinātājs tos redz un
@@ -554,22 +581,26 @@ async function handleSubmit() {
               Pašlaik {{ totalTestCount }} testi · vari pievienot vairāk
             </span>
           </div>
-        </section>
-
-        <div class="task-builder__actions">
-          <button
-            class="btn btn-outline-light"
-            type="button"
-            :disabled="isSubmitting"
-            @click="resetForm"
-          >
-            Notīrīt
-          </button>
-          <button class="btn btn-primary" type="submit" :disabled="isSubmitting">
-            {{ isSubmitting ? 'Pārbauda risinājumu...' : 'Saglabāt uzdevumu' }}
-          </button>
         </div>
-      </form>
-    </div>
-  </section>
+      </article>
+
+      <article class="content-panel card border-primary-subtle task-builder__card task-builder__card--actions">
+        <div class="card-body p-3 p-lg-4">
+          <div class="task-builder__actions">
+            <button
+              class="btn btn-outline-light"
+              type="button"
+              :disabled="isSubmitting"
+              @click="resetForm"
+            >
+              Notīrīt
+            </button>
+            <button class="btn btn-primary" type="submit" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Pārbauda risinājumu...' : 'Saglabāt uzdevumu' }}
+            </button>
+          </div>
+        </div>
+      </article>
+    </form>
+  </div>
 </template>

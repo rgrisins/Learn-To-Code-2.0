@@ -110,15 +110,32 @@ const isPickQuizTopicOpen = ref(false)
 // ─── Languages list filters ──────────────────────────────────────────────────
 const languageSearch = ref('')
 const hideCompletedLanguages = ref(false)
+const databaseSearch = ref('')
+const hideCompletedDatabases = ref(false)
 
 const ALGORITHM_TITLES = new Set(['algoritmi'])
+const DATABASE_TITLES = new Set(['mysql', 'mongodb'])
+const DATABASE_IMAGE_URLS: Record<string, string> = {
+  mysql: '/theory/mysql.png',
+  mongodb: '/theory/mongodb.png',
+}
 
 function isAlgorithmCategory(language: { title: string }) {
-  return ALGORITHM_TITLES.has(language.title.trim().toLowerCase())
+  return ALGORITHM_TITLES.has(normalizeCategoryTitle(language.title))
+}
+
+function isDatabaseCategory(language: { title: string }) {
+  return DATABASE_TITLES.has(normalizeCategoryTitle(language.title))
 }
 
 function getLanguageImageUrl(language: { title: string; imageUrl: string }): string {
+  const databaseImageUrl = DATABASE_IMAGE_URLS[normalizeCategoryTitle(language.title)]
+  if (databaseImageUrl) return databaseImageUrl
   return isAlgorithmCategory(language) ? algoritmiLogo : language.imageUrl
+}
+
+function normalizeCategoryTitle(title: string) {
+  return title.trim().toLowerCase()
 }
 
 function applyLanguageFilters(list: TheoryLanguage[]): TheoryLanguage[] {
@@ -135,8 +152,24 @@ function applyLanguageFilters(list: TheoryLanguage[]): TheoryLanguage[] {
   return result
 }
 
+function applyDatabaseFilters(list: TheoryLanguage[]): TheoryLanguage[] {
+  let result = list
+  if (canShowReadProgress.value && hideCompletedDatabases.value) {
+    result = result.filter((language) => language.progressPercent < 100)
+  }
+  const query = databaseSearch.value.trim().toLowerCase()
+  if (query) {
+    result = result.filter((language) =>
+      `${language.title} ${language.description}`.toLowerCase().includes(query),
+    )
+  }
+  return result
+}
+
 const programmingLanguages = computed(() =>
-  applyLanguageFilters(theoryLanguages.value.filter((lang) => !isAlgorithmCategory(lang))),
+  applyLanguageFilters(
+    theoryLanguages.value.filter((lang) => !isAlgorithmCategory(lang) && !isDatabaseCategory(lang)),
+  ),
 )
 
 const algorithmCategories = computed(() =>
@@ -145,15 +178,28 @@ const algorithmCategories = computed(() =>
   ),
 )
 
+const databaseCategories = computed(() =>
+  applyDatabaseFilters(theoryLanguages.value.filter((lang) => isDatabaseCategory(lang))).map(
+    (lang) => ({ ...lang, imageUrl: getLanguageImageUrl(lang) }),
+  ),
+)
+
+const allDatabaseCategories = computed(() =>
+  theoryLanguages.value.filter((lang) => isDatabaseCategory(lang)),
+)
+
 const filteredLanguages = computed(() => [
   ...programmingLanguages.value,
   ...algorithmCategories.value,
+  ...databaseCategories.value,
 ])
 
 const overallProgressPercent = computed(() => {
   // Aprēķina TIKAI no programmēšanas valodām — algoritmu kategorijas neietekmē
   // programmēšanas valodu kopējo apguves procentu.
-  const languages = theoryLanguages.value.filter((lang) => !isAlgorithmCategory(lang))
+  const languages = theoryLanguages.value.filter(
+    (lang) => !isAlgorithmCategory(lang) && !isDatabaseCategory(lang),
+  )
   if (!languages.length) return 0
   const totalTopics = languages.reduce((sum, language) => sum + (language.topicCount ?? 0), 0)
   if (totalTopics > 0) {
@@ -165,6 +211,21 @@ const overallProgressPercent = computed(() => {
   }
   const sum = languages.reduce((s, language) => s + (language.progressPercent ?? 0), 0)
   return Math.round(sum / languages.length)
+})
+
+const databaseProgressPercent = computed(() => {
+  const databases = allDatabaseCategories.value
+  if (!databases.length) return 0
+  const totalTopics = databases.reduce((sum, language) => sum + (language.topicCount ?? 0), 0)
+  if (totalTopics > 0) {
+    const weighted = databases.reduce(
+      (sum, language) => sum + (language.progressPercent ?? 0) * (language.topicCount ?? 0),
+      0,
+    )
+    return Math.round(weighted / totalTopics)
+  }
+  const sum = databases.reduce((total, language) => total + (language.progressPercent ?? 0), 0)
+  return Math.round(sum / databases.length)
 })
 
 function goToHome() {
@@ -276,22 +337,50 @@ function persistTheoryDraft() {
   const key = theoryDraftKey()
   if (!key || !isModalOpen.value) return
 
-  const isPristine =
-    !form.title.trim() && !form.description.trim() && !form.markdown.trim()
-  if (isPristine) {
+  const draft = currentTheoryDraft()
+  if (isTheoryDraftPristine(draft)) {
     clearDraft(key)
     draftSavedAt.value = null
+    draftRestored.value = false
     return
   }
 
-  saveDraft<TheoryDraft>(key, {
+  saveDraft<TheoryDraft>(key, draft)
+  draftSavedAt.value = new Date()
+}
+
+function currentTheoryDraft(): TheoryDraft {
+  return {
     title: form.title,
     description: form.description,
     difficulty: form.difficulty,
     estimatedMinutes: form.estimatedMinutes,
     markdown: form.markdown,
-  })
-  draftSavedAt.value = new Date()
+  }
+}
+
+function isTheoryDraftPristine(draft: TheoryDraft) {
+  const baseline = editingBaseline.value ?? buildEmptyTheoryBaseline()
+
+  return normalizeDraftText(draft.title) === normalizeDraftText(baseline.title) &&
+    normalizeDraftText(draft.description) === normalizeDraftText(baseline.description) &&
+    normalizeDraftText(draft.difficulty) === normalizeDraftText(baseline.difficulty) &&
+    Number(draft.estimatedMinutes) === Number(baseline.estimatedMinutes) &&
+    normalizeDraftText(draft.markdown) === normalizeDraftText(baseline.markdown)
+}
+
+function normalizeDraftText(value: string | null | undefined) {
+  return (value ?? '').trim()
+}
+
+function buildEmptyTheoryBaseline(): TheoryModalBaseline {
+  return {
+    title: '',
+    description: '',
+    difficulty: 'Iesācējs',
+    estimatedMinutes: 30,
+    markdown: '',
+  }
 }
 
 function applyTheoryDraft(): boolean {
@@ -300,6 +389,10 @@ function applyTheoryDraft(): boolean {
 
   const draft = loadDraft<TheoryDraft>(key)
   if (!draft) return false
+  if (isTheoryDraftPristine(draft)) {
+    clearDraft(key)
+    return false
+  }
 
   if (draft.title) form.title = draft.title
   if (draft.description) form.description = draft.description
@@ -321,13 +414,7 @@ function discardTheoryDraft() {
   clearTheoryDraft()
   // For edit modes, restore to the values that existed before the user started editing.
   // For add modes, reset to a pristine form.
-  applyModalBaseline(editingBaseline.value ?? {
-    title: '',
-    description: '',
-    difficulty: 'Iesācējs',
-    estimatedMinutes: 30,
-    markdown: '',
-  })
+  applyModalBaseline(editingBaseline.value ?? buildEmptyTheoryBaseline())
 }
 
 function createBlankQuizQuestion(): QuizQuestionForm {
@@ -610,13 +697,7 @@ function buildModalBaseline(category: RequestCategory): TheoryModalBaseline {
   }
 
   // addTopic / addContent — pristine baseline.
-  return {
-    title: '',
-    description: '',
-    difficulty: 'Iesācējs',
-    estimatedMinutes: 30,
-    markdown: '',
-  }
+  return buildEmptyTheoryBaseline()
 }
 
 function applyModalBaseline(baseline: TheoryModalBaseline) {
@@ -1087,6 +1168,10 @@ function topicQuizPercent(topic: TheoryTopic): number {
   return Math.round((topic.quizAnsweredCount / topic.quizQuestionCount) * 100)
 }
 
+function formatSectionCount(count: number): string {
+  return count === 1 ? '1 sadaļa' : `${count} sadaļas`
+}
+
 </script>
 
 <template>
@@ -1173,6 +1258,12 @@ function topicQuizPercent(topic: TheoryTopic): number {
           </h1>
           <p v-if="selectedTopic && activeTopicId" class="theory-lead mb-0 mt-1">{{ selectedTopic.description }}</p>
           <p v-else-if="selectedLanguage" class="theory-lead mb-0 mt-1">{{ selectedLanguage.description }}</p>
+        </div>
+        <div
+          v-if="!activeLanguageId"
+          class="theory-header__actions"
+        >
+          <span class="theory-section-count">{{ formatSectionCount(programmingLanguages.length) }}</span>
         </div>
         <div
           v-if="showReader && canSubmitTheoryRequests && currentPage"
@@ -1575,6 +1666,99 @@ function topicQuizPercent(topic: TheoryTopic): number {
     </div>
   </section>
 
+  <section
+    v-if="!activeLanguageId && !isLoadingLanguages && allDatabaseCategories.length"
+    class="content-panel card border-primary-subtle theory-panel mb-3"
+  >
+    <div class="card-body p-3 p-lg-4 theory-panel__body">
+      <div class="theory-header theory-header--compact">
+        <span class="page-title-icon page-title-icon--theory" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="8" ry="3" />
+            <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+            <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+          </svg>
+        </span>
+        <div class="theory-heading-copy">
+          <h1 class="section-heading mb-0">Datu bāzes</h1>
+        </div>
+        <div class="theory-header__actions">
+          <span class="theory-section-count">{{ formatSectionCount(databaseCategories.length) }}</span>
+        </div>
+        <div
+          v-if="canShowReadProgress"
+          class="theory-language-progress theory-header__progress"
+          role="progressbar"
+          aria-label="Datu bāzu apguves progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="databaseProgressPercent"
+        >
+          <div class="theory-language-progress__label">
+            <strong>{{ databaseProgressPercent }}% apgūts</strong>
+          </div>
+          <span class="theory-language-progress__track" aria-hidden="true">
+            <span
+              class="theory-language-progress__bar"
+              :style="{ width: `${databaseProgressPercent}%` }"
+            ></span>
+          </span>
+        </div>
+      </div>
+
+      <div class="theory-topics-controls">
+        <input
+          v-model="databaseSearch"
+          type="search"
+          class="theory-search auth-input"
+          placeholder="Meklēt datu bāzi..."
+        />
+        <div v-if="canShowReadProgress" class="theory-filter-group">
+          <button
+            type="button"
+            class="ex-filter-btn"
+            :class="{ active: hideCompletedDatabases }"
+            @click="hideCompletedDatabases = !hideCompletedDatabases"
+          >Paslēpt apgūtās</button>
+        </div>
+      </div>
+
+      <div v-if="databaseCategories.length" class="theory-list theory-list--languages">
+        <button
+          v-for="language in databaseCategories"
+          :key="language.id"
+          type="button"
+          class="theory-list-item"
+          @click="selectLanguage(language.id)"
+        >
+          <img
+            class="theory-list-item__image"
+            :src="language.imageUrl"
+            :alt="language.title"
+          />
+          <div class="theory-list-item__body">
+            <strong>{{ language.title }}</strong>
+            <span>{{ language.description }}</span>
+          </div>
+          <div class="theory-list-item__meta">
+            <div class="theory-language-meta-count">
+              <span class="theory-card__kicker">{{ language.topicCount }} tēmas</span>
+            </div>
+            <div v-if="canShowReadProgress" class="theory-list-item__progress">
+              <span class="theory-card__progress">{{ language.progressPercent }}% apgūts</span>
+              <span class="theory-progress-track" aria-hidden="true">
+                <span class="theory-progress-bar" :style="{ width: `${language.progressPercent}%` }"></span>
+              </span>
+            </div>
+          </div>
+        </button>
+      </div>
+      <div v-else class="theory-empty">
+        Nav datu bāzu, kas atbilst filtriem.
+      </div>
+    </div>
+  </section>
+
   <div v-if="isPickQuizTopicOpen" class="app-modal-backdrop" @click.self="closePickQuizTopic">
     <div class="app-modal app-modal--sm card border-primary-subtle">
       <div class="card-body p-3 p-lg-4">
@@ -1610,6 +1794,15 @@ function topicQuizPercent(topic: TheoryTopic): number {
   <div v-if="isDeleteTheoryModalOpen" class="app-modal-backdrop" @click.self="closeDeleteTheoryModal">
     <div class="app-modal app-modal--sm card border-primary-subtle delete-modal">
       <div class="card-body p-3 p-lg-4">
+        <div class="delete-modal__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </div>
         <h2 class="section-heading delete-modal__title mb-3">{{ deleteTheoryTitle }}</h2>
         <p class="delete-modal__text mb-4">{{ deleteTheoryDescription }}</p>
 
@@ -1751,7 +1944,7 @@ function topicQuizPercent(topic: TheoryTopic): number {
 
   <!-- Request modal -->
   <div v-if="isModalOpen" class="app-modal-backdrop" @click.self="closeModal">
-    <div class="app-modal app-modal--lg card border-primary-subtle">
+    <div class="app-modal app-modal--lg app-modal--theory-editor card border-primary-subtle">
       <div class="card-body p-3 p-lg-4">
         <h2 class="section-heading mb-3">{{ modalTitle }}</h2>
 
@@ -1828,7 +2021,7 @@ function topicQuizPercent(topic: TheoryTopic): number {
               id="formMarkdown"
               v-model="form.markdown"
               class="form-control auth-input theory-proposal-editor"
-              rows="9"
+              rows="16"
               placeholder="# Virsraksts&#10;&#10;Saturs šeit..."
             ></textarea>
             <div v-else class="theory-proposal-preview theory-markdown" v-html="previewMarkdown"></div>

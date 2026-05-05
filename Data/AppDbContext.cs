@@ -322,6 +322,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.LanguageVersion).HasMaxLength(32).IsRequired();
             entity.Property(e => e.SolutionLanguageCode).HasMaxLength(64).IsRequired();
             entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(e => e.RequestType).HasConversion<string>().HasMaxLength(40);
 
             entity.HasOne(e => e.Author)
                 .WithMany()

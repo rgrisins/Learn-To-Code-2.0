@@ -53,9 +53,11 @@ const userRankById = computed(
 )
 
 const rankedRepresentations = computed(() =>
-  [...ratingRepresentations.value].sort((first, second) => {
-    return second.averageRating - first.averageRating
-  }),
+  ratingRepresentations.value
+    .filter((representation) => !isRankingExcludedRepresentation(representation))
+    .sort((first, second) => {
+      return second.averageRating - first.averageRating
+    }),
 )
 
 const filteredSortedRepresentations = computed(() =>
@@ -114,11 +116,11 @@ const topRepresentationsChart = computed(() =>
 
 const topRating = computed(() => Math.max(0, ...rankedUsers.value.map((user) => user.rating)))
 const topRepresentationRating = computed(() =>
-  Math.max(0, ...ratingRepresentations.value.map((representation) => representation.averageRating)),
+  Math.max(0, ...rankedRepresentations.value.map((representation) => representation.averageRating)),
 )
 const averageRating = computed(() => formatAverage(rankedUsers.value.map((user) => user.rating)))
 const averageRepresentationRating = computed(() =>
-  formatAverage(ratingRepresentations.value.map((representation) => representation.averageRating)),
+  formatAverage(rankedRepresentations.value.map((representation) => representation.averageRating)),
 )
 
 const userChartMax = computed(() =>
@@ -164,6 +166,10 @@ function getDisplayName(user: RatingUser) {
 
 function normalizeSearch(value?: string | null) {
   return value?.trim().toLocaleLowerCase('lv-LV') ?? ''
+}
+
+function isRankingExcludedRepresentation(representation: Pick<RatingRepresentation, 'name'>) {
+  return normalizeSearch(representation.name) === 'learntocode'
 }
 
 function setSortDirection(direction: SortDirection) {

@@ -117,6 +117,13 @@ public class ExercisesController : ControllerBase
         var isSolved = userId.HasValue && await _db.ExerciseSubmissions
             .AnyAsync(s => s.ExerciseId == id && s.UserId == userId.Value
                            && s.Status == SubmissionStatus.Passed, ct);
+        var hasPendingDescriptionEditRequest = userId.HasValue && await _db.ExerciseRequests
+            .AnyAsync(r =>
+                r.ExerciseId == id &&
+                r.AuthorId == userId.Value &&
+                r.RequestType == ExerciseRequestType.EditDescription &&
+                r.Status == ExerciseRequestStatus.Pending,
+                ct);
 
         var visible = exercise.TestCases
             .Where(tc => !tc.IsHidden)
@@ -126,8 +133,58 @@ public class ExercisesController : ControllerBase
         return Ok(new ExerciseDetailDto(
             exercise.Id, exercise.Title, exercise.Description, exercise.Difficulty,
             exercise.LanguageCode, exercise.LanguageVersion,
-            visible, isSolved
+            visible, isSolved, hasPendingDescriptionEditRequest
         ));
+    }
+
+    [HttpPost("{id:int}/description-request")]
+    [Authorize(Roles = $"{nameof(UserRole.Pedagogs)},{nameof(UserRole.Administrators)}")]
+    public async Task<IActionResult> SubmitDescriptionEditRequest(
+        int id, [FromBody] UpdateExerciseDescriptionRequest request, CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var exercise = await _db.Exercises.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (exercise is null)
+            return NotFound(new { message = "Uzdevums nav atrasts." });
+
+        var description = NormalizeMultilineText(request.Description);
+        if (string.IsNullOrWhiteSpace(description))
+            return BadRequest(new { message = "Apraksts nedrīkst būt tukšs." });
+
+        if (string.Equals(description, exercise.Description.Trim(), StringComparison.Ordinal))
+            return BadRequest(new { message = "Apraksts nav mainīts." });
+
+        var hasPending = await _db.ExerciseRequests.AnyAsync(r =>
+            r.ExerciseId == id &&
+            r.AuthorId == userId.Value &&
+            r.RequestType == ExerciseRequestType.EditDescription &&
+            r.Status == ExerciseRequestStatus.Pending,
+            ct);
+
+        if (hasPending)
+            return Conflict(new { message = "Šim uzdevumam jau ir tavs gaidošs apraksta labojuma pieprasījums." });
+
+        _db.ExerciseRequests.Add(new ExerciseRequest
+        {
+            RequestType = ExerciseRequestType.EditDescription,
+            ExerciseId = exercise.Id,
+            AuthorId = userId.Value,
+            Title = exercise.Title,
+            Description = description,
+            Difficulty = exercise.Difficulty,
+            LanguageCode = exercise.LanguageCode,
+            LanguageVersion = exercise.LanguageVersion,
+            SolutionLanguageCode = exercise.LanguageCode,
+            SolutionCode = string.Empty,
+            TestCasesJson = "[]",
+            Status = ExerciseRequestStatus.Pending,
+            CreatedAtUtc = DateTime.UtcNow,
+        });
+
+        await _db.SaveChangesAsync(ct);
+        return Accepted(new { message = "Apraksta labojuma pieprasījums nosūtīts administratoram." });
     }
 
     [HttpPost("{id:int}/submit")]
@@ -287,6 +344,7 @@ public class ExercisesController : ControllerBase
 
         var pending = new ExerciseRequest
         {
+            RequestType = ExerciseRequestType.Create,
             AuthorId = GetCurrentUserId(),
             Title = request.Title.Trim(),
             Description = request.Description.Trim(),
@@ -347,6 +405,34 @@ public class ExercisesController : ControllerBase
         if (pending.Status != ExerciseRequestStatus.Pending)
             return BadRequest(new { message = "Pieprasījums jau ir izskatīts." });
 
+        if (pending.RequestType == ExerciseRequestType.EditDescription)
+        {
+            if (pending.ExerciseId is null)
+                return BadRequest(new { message = "Pieprasījumam nav piesaistīta uzdevuma." });
+
+            var targetExercise = await _db.Exercises.FirstOrDefaultAsync(e => e.Id == pending.ExerciseId.Value, ct);
+            if (targetExercise is null)
+                return NotFound(new { message = "Uzdevums nav atrasts." });
+
+            targetExercise.Description = pending.Description;
+            pending.Status = ExerciseRequestStatus.Approved;
+            await _db.SaveChangesAsync(ct);
+
+            var testCaseCount = await _db.ExerciseTestCases.CountAsync(tc => tc.ExerciseId == targetExercise.Id, ct);
+            return Ok(new ExerciseListItemDto(
+                targetExercise.Id,
+                targetExercise.Title,
+                targetExercise.Description,
+                targetExercise.Difficulty,
+                targetExercise.LanguageCode,
+                targetExercise.LanguageVersion,
+                testCaseCount,
+                0,
+                0,
+                0,
+                false));
+        }
+
         var testCases = JsonSerializer.Deserialize<List<CreateTestCaseRequest>>(pending.TestCasesJson) ?? [];
 
         var nextSortOrder = (await _db.Exercises.MaxAsync(e => (int?)e.SortOrder, ct) ?? 0) + 1;
@@ -396,11 +482,32 @@ public class ExercisesController : ControllerBase
         return NoContent();
     }
 
+    [HttpDelete("admin/exercises/{id:int}")]
+    [Authorize(Roles = nameof(UserRole.Administrators))]
+    public async Task<IActionResult> DeleteExercise(int id, CancellationToken ct)
+    {
+        var exercise = await _db.Exercises.FirstOrDefaultAsync(e => e.Id == id, ct);
+        if (exercise is null)
+            return NotFound(new { message = "Uzdevums nav atrasts." });
+
+        var pendingRequests = await _db.ExerciseRequests
+            .Where(request => request.ExerciseId == id && request.Status == ExerciseRequestStatus.Pending)
+            .ToListAsync(ct);
+
+        _db.ExerciseRequests.RemoveRange(pendingRequests);
+        _db.Exercises.Remove(exercise);
+        await _db.SaveChangesAsync(ct);
+
+        return NoContent();
+    }
+
     private static ExercisePendingDto MapPendingExercise(ExerciseRequest pending)
     {
         var testCases = ReadPendingTestCases(pending.TestCasesJson);
         return new ExercisePendingDto(
             pending.Id,
+            pending.RequestType.ToString(),
+            pending.ExerciseId,
             pending.Title,
             pending.Description,
             pending.Difficulty,
