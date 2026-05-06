@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LearnToCode.Data")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ec6d38cb30515e2088284ce62b44d38bfd92f63c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+02599030204b3b3805c67e3eb532df5297321eff")]
 [assembly: System.Reflection.AssemblyProductAttribute("LearnToCode.Data")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LearnToCode.Data")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
