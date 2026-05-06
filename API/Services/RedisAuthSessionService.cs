@@ -157,22 +157,21 @@ public sealed class RedisAuthSessionService : IAuthSessionService
 
     public async Task<bool> ValidateOrRecreateSessionAsync(string sessionId, string jwtId, string token, User user, TokenGenerationResult tokenResult, CancellationToken cancellationToken)
     {
-        // First, try to validate the existing session
+        // Vispirms mēģina izmantot jau esošu sesiju.
         var isValid = await ValidateSessionAsync(sessionId, jwtId, token, cancellationToken);
         if (isValid)
         {
             return true;
         }
 
-        // If validation fails, the session might have expired in Redis
-        // Recreate it from the valid JWT claims if the token hasn't expired yet
+        // Ja Redis ieraksts pazudis, sesiju var atjaunot no vēl derīga JWT.
         if (tokenResult.ExpiresAtUtc > DateTime.UtcNow)
         {
             await CreateSessionAsync(sessionId, user, tokenResult, token, cancellationToken);
             return true;
         }
 
-        // Token itself has expired
+        // Ja beidzies pats JWT, sesiju atjaunot nedrīkst.
         return false;
     }
 

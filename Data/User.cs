@@ -5,7 +5,7 @@ public class User
     public int Id { get; set; }
 
     /// <summary>
-    /// Lietotājvārds — jau normalizēts (lowercase, trim) pirms saglabāšanas DB.
+    /// Lietotājvārds jau ir normalizēts pirms saglabāšanas datubāzē.
     /// Unikalitāte tiek nodrošināta ar LOWER() funkcijas indeksu.
     /// </summary>
     public string? Username { get; set; }
@@ -22,7 +22,7 @@ public class User
     public string FullName => $"{FirstName} {LastName}".Trim();
 
     /// <summary>
-    /// E-pasts — jau normalizēts (lowercase, trim) pirms saglabāšanas DB.
+    /// E-pasts jau ir normalizēts pirms saglabāšanas datubāzē.
     /// Unikalitāte tiek nodrošināta ar LOWER() funkcijas indeksu.
     /// </summary>
     public string Email { get; set; } = string.Empty;
@@ -35,7 +35,7 @@ public class User
     public string? Representation { get; set; }
 
     /// <summary>
-    /// Lietotāja īss apraksts par sevi (max 500 rakstzīmes).
+    /// Lietotāja īss apraksts par sevi, ne garāks par 500 rakstzīmēm.
     /// </summary>
     public string? Bio { get; set; }
 

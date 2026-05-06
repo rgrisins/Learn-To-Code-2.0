@@ -49,6 +49,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Administrators nav pieejams pašreģistrācijai." });
         }
 
+        // Pedagoga lomu nepiešķir uzreiz; sākumā konts tiek izveidots kā audzēknis.
         var requestedRole = role;
         var roleRequestReason = request.RoleRequestReason?.Trim();
 
@@ -62,7 +63,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Pedagoga lomas pieprasijuma iemesls ir par garu." });
         }
 
-        // Username un Email DB jau ir lowercase + trim, salīdzinām attiecīgi.
+        // Lietotājvārds un e-pasts datubāzē jau ir ar mazajiem burtiem un bez liekām atstarpēm.
         var normalizedUsername = username.ToLowerInvariant();
 
         var existingUser = await _dbContext.Users
@@ -105,6 +106,7 @@ public class AuthController : ControllerBase
 
         user.PasswordHash = _passwordHasher.HashPassword(user, request.Password);
 
+        // Lietotāju un pedagoga lomas pieprasījumu saglabā vienā transakcijā.
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         _dbContext.Users.Add(user);
@@ -217,6 +219,7 @@ public class AuthController : ControllerBase
         var sessionId = Guid.NewGuid().ToString("N");
         var tokenResult = _tokenService.CreateToken(user, sessionId);
         var session = await _authSessionService.CreateSessionAsync(sessionId, user, tokenResult, tokenResult.Token, cancellationToken);
+        // Sesijas ID glabājas httpOnly sīkdatnē, bet klientam tiek atdots aktuālais JWT.
         Response.Cookies.Append(
             AuthCookieDefaults.RefreshTokenCookieName,
             sessionId,

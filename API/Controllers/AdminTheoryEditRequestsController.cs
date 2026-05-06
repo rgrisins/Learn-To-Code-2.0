@@ -22,7 +22,7 @@ public class AdminTheoryRequestsController : ControllerBase
         _catalogService = catalogService;
     }
 
-    // ─── Topic requests ─────────────────────────────────────────
+    // Tēmu pieprasījumu apstrāde.
 
     [HttpGet("topics")]
     public async Task<ActionResult<IEnumerable<TheoryTopicRequestResponse>>> GetTopicRequests(
@@ -81,7 +81,7 @@ public class AdminTheoryRequestsController : ControllerBase
         return Ok(TheoryRequestsController.ToTopicResponse(request));
     }
 
-    // ─── Content requests ────────────────────────────────────────
+    // Teorijas satura pieprasījumu apstrāde.
 
     [HttpGet("content")]
     public async Task<ActionResult<IEnumerable<TheoryContentRequestResponse>>> GetContentRequests(
@@ -140,7 +140,7 @@ public class AdminTheoryRequestsController : ControllerBase
         return Ok(TheoryRequestsController.ToContentResponse(request));
     }
 
-    // Quiz requests
+    // Teorijas testu pieprasījumu apstrāde.
 
     [HttpGet("quizzes")]
     public async Task<ActionResult<IEnumerable<TheoryQuizRequestResponse>>> GetQuizRequests(

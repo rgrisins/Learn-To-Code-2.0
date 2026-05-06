@@ -14,9 +14,8 @@ public enum ExerciseRequestType
 }
 
 /// <summary>
-/// An exercise authored by a Pedagogs/Administrators user that is waiting for an
-/// administrator to review. Approving a request materialises an Exercise + TestCases.
-/// Until then the exercise itself does not exist.
+/// Pedagoga vai administratora sagatavots uzdevuma pieprasījums,
+/// kas kļūst par īstu uzdevumu tikai pēc administratora apstiprinājuma.
 /// </summary>
 public class ExerciseRequest
 {
@@ -45,7 +44,7 @@ public class ExerciseRequest
     public string SolutionCode { get; set; } = string.Empty;
 
     /// <summary>
-    /// JSON-serialised list of test cases (input, expectedOutput, isHidden) in order.
+    /// JSON formātā saglabāts testu saraksts ar ievadi, sagaidāmo izvadi un slēpšanas pazīmi.
     /// </summary>
     public string TestCasesJson { get; set; } = string.Empty;
 

@@ -33,3 +33,7 @@ C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.Data.deps.j
 C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.Data.runtimeconfig.json
 C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.Data.dll
 C:\Users\rgris\source\repos\LearnToCode\.build\api-check\LearnToCode.Data.pdb
+C:\Users\rgris\AppData\Local\Temp\ltc-build-check\LearnToCode.Data.deps.json
+C:\Users\rgris\AppData\Local\Temp\ltc-build-check\LearnToCode.Data.runtimeconfig.json
+C:\Users\rgris\AppData\Local\Temp\ltc-build-check\LearnToCode.Data.dll
+C:\Users\rgris\AppData\Local\Temp\ltc-build-check\LearnToCode.Data.pdb

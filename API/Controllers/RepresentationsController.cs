@@ -111,7 +111,7 @@ public class RepresentationsController : ControllerBase
             return NotFound(new { message = "Pārstāvniecība nav atrasta." });
         }
 
-        // FullName ir computed → ielādējam pilnās entītes un mapojam C# atmiņā
+        // FullName ir aprēķināma īpašība, tāpēc ielādējam pilnās entītes un mapojam C# atmiņā.
         var memberships = await _dbContext.RepresentationMemberships
             .AsNoTracking()
             .Include(membership => membership.User)
@@ -430,7 +430,7 @@ public class RepresentationsController : ControllerBase
         return Ok(new { membership = true, representation = joinedResponses.Single() });
     }
 
-    // ---- Join request management (owner / moderator) -------------------
+    // Pievienošanās pieprasījumu pārvaldība īpašniekam un moderatoram.
 
     [HttpGet("{id:int}/requests")]
     public async Task<ActionResult<IEnumerable<RepresentationJoinRequestResponse>>> GetJoinRequests(int id, CancellationToken cancellationToken)
@@ -495,7 +495,7 @@ public class RepresentationsController : ControllerBase
             return Conflict(new { message = "Lietotājs jau ir citā pārstāvniecībā." });
         }
 
-        // Ja jau ir šīs pārstāvniecības dalībnieks (race condition), tikai atzīmējam apstiprinātu.
+        // Ja lietotājs jau ir dalībnieks vienlaicīgas darbības dēļ, tikai atzīmējam apstiprinātu.
         var alreadyMember = await _dbContext.RepresentationMemberships
             .AnyAsync(membership => membership.RepresentationId == id && membership.UserId == request.UserId, cancellationToken);
 
@@ -556,7 +556,7 @@ public class RepresentationsController : ControllerBase
         return NoContent();
     }
 
-    // ---- Member management (kick, role change) -------------------------
+    // Dalībnieku izņemšana un lomu maiņa pārstāvniecībā.
 
     [HttpDelete("{id:int}/members/{memberUserId:int}")]
     public async Task<IActionResult> KickMember(int id, int memberUserId, CancellationToken cancellationToken)
@@ -589,8 +589,8 @@ public class RepresentationsController : ControllerBase
 
         if (target is null) return NotFound(new { message = "Dalībnieks nav atrasts." });
 
-        // Owner var izmest jebkuru. Moderators drīkst izmest tikai parastos
-        // dalībniekus (Member), bet ne citus moderators vai owner.
+        // Īpašnieks var izmest jebkuru. Moderators drīkst izmest tikai parastos
+        // dalībniekus, bet ne citus moderatorus vai īpašnieku.
         if (actorMembership.Role == RepresentationMemberRole.Moderators &&
             target.Role != RepresentationMemberRole.Member)
         {
@@ -629,7 +629,7 @@ public class RepresentationsController : ControllerBase
         var userId = GetCurrentUserId();
         if (userId is null) return Unauthorized();
 
-        // Tikai owner var mainīt lomas.
+        // Tikai īpašnieks var mainīt lomas.
         var actorMembership = await _dbContext.RepresentationMemberships
             .AsNoTracking()
             .FirstOrDefaultAsync(membership =>
@@ -650,8 +650,8 @@ public class RepresentationsController : ControllerBase
             return BadRequest(new { message = "Nederīga loma." });
         }
 
-        // Owner lomu nevar piešķirt caur šo endpointu (būtu nepieciešama
-        // atsevišķa "transfer ownership" loģika, lai garantētu vienu owner).
+        // Īpašnieka lomu nevar piešķirt caur šo galapunktu, jo tam vajadzīga
+        // atsevišķa īpašumtiesību nodošanas loģika.
         if (newRole == RepresentationMemberRole.Owner)
         {
             return BadRequest(new { message = "Owner pārcelšana pagaidām nav atbalstīta." });
@@ -846,7 +846,7 @@ public class RepresentationsController : ControllerBase
                     .Distinct()
                     .Count();
                 // Pēdējās 7 dienās: skaitām unikālus (lietotājs, uzdevums) pārus, kuriem
-                // pirmais veiksmīgais iesūtījums (Passed) ir notikkis šajā logā.
+            // pirmais veiksmīgais iesūtījums (Passed) ir noticis šajā logā.
                 var solvedLast7Days = submissionRows
                     .Where(submission => userIds.Contains(submission.UserId)
                                           && submission.Status == SubmissionStatus.Passed

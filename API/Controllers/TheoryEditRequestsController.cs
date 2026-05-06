@@ -58,6 +58,7 @@ public class TheoryRequestsController : ControllerBase
             ? await GenerateUniqueTopicSlugAsync(languageCode, request.ProposedTitle!, cancellationToken)
             : request.TopicSlug!.Trim().ToLowerInvariant();
 
+        // Pedagoga izmaiņas tiek saglabātas kā pieprasījums administratoram.
         var now = DateTime.UtcNow;
         var topicRequest = new TheoryTopicRequest
         {
@@ -110,6 +111,7 @@ public class TheoryRequestsController : ControllerBase
         if (requestType == TheoryContentRequestType.Edit && request.PageIndex is null)
             return BadRequest(new { message = "Rediģējamai teorijas lapai jānorāda lapas numurs." });
 
+        // Teorijas lapas izmaiņas netiek publicētas bez administratora apstiprinājuma.
         var now = DateTime.UtcNow;
         var contentRequest = new TheoryContentRequest
         {
@@ -156,6 +158,7 @@ public class TheoryRequestsController : ControllerBase
         if (!Enum.TryParse<TheoryQuizRequestType>(request.RequestType, ignoreCase: true, out var requestType))
             return BadRequest(new { message = "Derīgais tips: 'Add' vai 'Edit'." });
 
+        // Testa jautājumus sakārto vienotā JSON struktūrā pirms pieprasījuma saglabāšanas.
         var (questions, validationError) = NormalizeQuizQuestions(request.Questions);
         if (validationError is not null)
         {
@@ -290,6 +293,7 @@ public class TheoryRequestsController : ControllerBase
         var slug = baseSlug;
         var suffix = 2;
 
+        // Identifikatoram jābūt unikālam gan publicētajās tēmās, gan gaidošajos pieprasījumos.
         while (await TopicSlugExistsAsync(languageCode, slug, cancellationToken))
         {
             slug = $"{baseSlug}-{suffix}";

@@ -25,8 +25,8 @@ public class AdminUsersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UserProfileResponse>>> GetAll(CancellationToken cancellationToken)
     {
-        // FullName ir computed property (FirstName + LastName) — to nedrīkst lietot
-        // tieši IQueryable Select-ā, jo EF nezina, kā to translēt SQL. Ielādējam
+        // FullName ir aprēķināma īpašība (FirstName + LastName), tāpēc to nedrīkst
+        // lietot tieši vaicājuma Select daļā. Ielādējam
         // entītes un mapojam C# atmiņā.
         var users = await _dbContext.Users
             .OrderBy(user => user.Id)
@@ -126,6 +126,7 @@ public class AdminUsersController : ControllerBase
             }
         }
 
+        // Dzēš arī aktīvās sesijas, lai kontu nevarētu turpināt lietot ar vecu JWT.
         await _authSessionService.DeleteUserSessionsAsync(user.Id, cancellationToken);
         _dbContext.Users.Remove(user);
         await _dbContext.SaveChangesAsync(cancellationToken);

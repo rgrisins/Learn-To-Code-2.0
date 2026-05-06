@@ -209,6 +209,7 @@ public class TheoryCatalogService
         return await _progressService.MarkPageReadAsync(userId, languageId, topicId, page, cancellationToken);
     }
 
+    // Teorijas teksts glabājas MinIO, bet datubāzē ir tikai objekta nosaukums.
     private async Task<string?> ReadMarkdownObjectAsync(string markdownObjectName, CancellationToken cancellationToken)
     {
         var objectName = BuildObjectName(markdownObjectName);
@@ -274,7 +275,7 @@ public class TheoryCatalogService
         }
         catch (ObjectNotFoundException)
         {
-            // Deleting content should stay idempotent when the object is already gone.
+            // Dzēšana paliek droša arī tad, ja objekts jau ir pazudis.
         }
     }
 

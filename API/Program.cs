@@ -15,7 +15,7 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Reģistrē API izmantotos servisus un ārējos savienojumus.
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -121,14 +121,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     return;
                 }
 
-                // Try to validate existing session
+                // Vispirms pārbauda, vai Redis sesija vēl ir derīga.
                 var isValid = await sessionService.ValidateSessionAsync(sessionId, jwtId, rawToken, context.HttpContext.RequestAborted);
                 if (isValid)
                 {
                     return;
                 }
 
-                // Session validation failed - try to restore it if JWT is still valid
+                // Ja sesija pazudusi no Redis, bet JWT vēl derīgs, tā tiek atjaunota.
                 if (!int.TryParse(userIdClaim, out var userId))
                 {
                     context.Fail($"Invalid user ID in token: {userIdClaim}");
@@ -203,7 +203,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 builder.Services.AddOpenApi();
 
-// Configure ForwardedHeaders middleware to handle proxy headers
+// Apstrādā proxy galvenes, lai API pareizi atpazītu klienta shēmu un adresi.
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -213,7 +213,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Konfigurē pieprasījumu apstrādes secību.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

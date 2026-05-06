@@ -13,7 +13,7 @@ public static class AuthCookieDefaults
         SameSite = ShouldUseCrossSiteCookie(request) && IsBrowserHttps(request) ? SameSiteMode.None : SameSiteMode.Lax,
         IsEssential = true,
         Path = "/",
-        Domain = null, // Allow cookie to be sent to proxied requests
+        Domain = null, // Ļauj sīkdatni korekti nosūtīt arī caur proxy.
         Expires = expiresAtUtc,
     };
 
@@ -24,7 +24,7 @@ public static class AuthCookieDefaults
         SameSite = ShouldUseCrossSiteCookie(request) && IsBrowserHttps(request) ? SameSiteMode.None : SameSiteMode.Lax,
         IsEssential = true,
         Path = "/",
-        Domain = null, // Allow cookie to be sent to proxied requests
+        Domain = null, // Dzēšanai jāizmanto tas pats domēna režīms.
         Expires = DateTimeOffset.UtcNow.AddDays(-1),
     };
 

@@ -13,9 +13,9 @@ namespace LearnToCode.API.Controllers;
 [Route("api/exercises")]
 public class ExercisesController : ControllerBase
 {
-    // Minimum total tests an exercise must have (samples + hidden).
+    // Minimālais testu skaits uzdevumam, ieskaitot redzamos un slēptos testus.
     private const int MinimumTotalExerciseTestCases = 20;
-    // The first two tests in the unified list are always visible — they ARE the samples.
+    // Pirmie divi testi vienmēr ir redzamie paraugi.
     private const int SampleTestCaseCount = 2;
     private static readonly JsonSerializerOptions StreamJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -54,6 +54,7 @@ public class ExercisesController : ControllerBase
             })
             .ToListAsync(ct);
 
+        // Saraksta skatam aprēķina kopējo iesniegumu un atrisinājumu statistiku.
         var exerciseIds = exercises.Select(e => e.Id).ToList();
         var stats = await _db.ExerciseSubmissions
             .Where(s => exerciseIds.Contains(s.ExerciseId))
@@ -166,6 +167,7 @@ public class ExercisesController : ControllerBase
         if (hasPending)
             return Conflict(new { message = "Šim uzdevumam jau ir tavs gaidošs apraksta labojuma pieprasījums." });
 
+        // Apraksta labojums nonāk apstiprināšanai, nevis uzreiz maina uzdevumu.
         _db.ExerciseRequests.Add(new ExerciseRequest
         {
             RequestType = ExerciseRequestType.EditDescription,
@@ -323,7 +325,7 @@ public class ExercisesController : ControllerBase
         if (normalizedAll.Any(tc => string.IsNullOrWhiteSpace(tc.Input) || string.IsNullOrWhiteSpace(tc.ExpectedOutput)))
             return BadRequest(new { message = "Katram testam jābūt ievaddatiem un izvaddatiem." });
 
-        // Force the first two tests to be visible (they are the samples) and the rest hidden.
+        // Pirmie divi testi paliek redzami, pārējie tiek izmantoti slēptajai pārbaudei.
         var normalizedTestCases = normalizedAll
             .Select((tc, index) => new CreateTestCaseRequest(
                 tc.Input,
@@ -332,7 +334,7 @@ public class ExercisesController : ControllerBase
                 index))
             .ToList();
 
-        // Validate that the author solution passes ALL tests (samples + hidden).
+        // Autora risinājumam jāiziet visi testi, lai pieprasījumu varētu iesniegt.
         var solutionValidationError = await ValidateReferenceSolutionAsync(
             request.SolutionCode,
             solutionLanguage,
@@ -342,6 +344,7 @@ public class ExercisesController : ControllerBase
         if (solutionValidationError is not null)
             return BadRequest(new { message = solutionValidationError });
 
+        // Ja viss ir korekti, uzdevums tiek publicēts tikai pēc administratora apstiprinājuma.
         var pending = new ExerciseRequest
         {
             RequestType = ExerciseRequestType.Create,
@@ -364,7 +367,7 @@ public class ExercisesController : ControllerBase
         return Accepted(new { message = "Uzdevums iesniegts apstiprināšanai." });
     }
 
-    // ── Admin approval queue ─────────────────────────────────────────────────────
+    // Administratora apstiprināšanas rinda.
 
     [HttpGet("admin/pending")]
     [Authorize(Roles = nameof(UserRole.Administrators))]
@@ -657,8 +660,8 @@ public class ExercisesController : ControllerBase
 
         // Visi testi tiek izpildīti vienā Docker konteinerā (RunBatchAsync) — tas
         // amortizē konteinera startēšanas izmaksas. Lai saglabātu sākotnējo
-        // "stop at first failure" UX, ignorējam progresa atskaites pēc pirmās
-        // neveiksmes (kods jau ir izpildīts, vienkārši nesaglabājam).
+        // lietotāja pieredzi ar apstāšanos pie pirmās kļūdas, ignorējam
+        // nākamās progresa atskaites (kods jau ir izpildīts, vienkārši nesaglabājam).
         var inputs = testCases.Select(tc => tc.Input).ToList();
 
         await _runner.RunBatchAsync(code, inputs, language, async (idx, run, innerCt) =>
@@ -732,8 +735,7 @@ public class ExercisesController : ControllerBase
         var user = await _db.Users.FindAsync([userId], cancellationToken: ct);
         if (user is not null)
         {
-            // Reward correct first-time solutions; never deduct rating for incorrect or
-            // timed-out attempts.
+            // Punktus piešķir tikai par pirmo pareizo risinājumu; par kļūdām tos neatņem.
             if (submission.Status == SubmissionStatus.Passed && !alreadySolved)
             {
                 ratingDelta = DifficultyPoints(exercise.Difficulty);

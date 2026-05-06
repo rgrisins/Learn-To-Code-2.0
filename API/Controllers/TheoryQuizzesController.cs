@@ -154,6 +154,7 @@ public class TheoryQuizzesController : ControllerBase
         var correctOption = question.Options.First(o => o.IsCorrect);
         var isCorrect = selectedOption.IsCorrect;
 
+        // Uz vienu jautājumu atļauta tikai pirmā atbilde, lai reitings būtu korekts.
         var existingAnswer = await _db.TheoryQuizQuestionAnswers
             .FirstOrDefaultAsync(a => a.UserId == userId.Value && a.QuestionId == question.Id, ct);
 

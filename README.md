@@ -9,6 +9,14 @@ The app can be run locally while using the server PostgreSQL, Redis and MinIO se
 Run from the repository root:
 
 ```bash
+set Jwt__Secret=change-this-to-a-long-random-secret
+dotnet run --project API/LearnToCode.csproj --launch-profile https
+```
+
+PowerShell:
+
+```powershell
+$env:Jwt__Secret = 'change-this-to-a-long-random-secret'
 dotnet run --project API/LearnToCode.csproj --launch-profile https
 ```
 

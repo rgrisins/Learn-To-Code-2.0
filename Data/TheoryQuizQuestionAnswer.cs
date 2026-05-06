@@ -1,9 +1,8 @@
 namespace LearnToCode.Data;
 
 /// <summary>
-/// Records the first answer a user gives to a quiz question.
-/// Used to make rating awards idempotent: a user gets +1 rating point only for
-/// a correct first answer, and answered questions cannot be retried.
+/// Glabā lietotāja pirmo atbildi uz teorijas testa jautājumu.
+/// Tas nodrošina, ka reitings tiek piešķirts tikai vienu reizi.
 /// </summary>
 public class TheoryQuizQuestionAnswer
 {

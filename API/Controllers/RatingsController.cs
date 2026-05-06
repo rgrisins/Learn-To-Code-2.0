@@ -19,7 +19,7 @@ public class RatingsController : ControllerBase
     [HttpGet("users")]
     public async Task<ActionResult<IEnumerable<RatingUserResponse>>> GetUsers(CancellationToken cancellationToken)
     {
-        // FullName ir computed → ielādējam un mapojam C# atmiņā
+        // FullName ir aprēķināma īpašība, tāpēc ielādējam un mapojam C# atmiņā.
         var users = await _dbContext.Users
             .AsNoTracking()
             .Where(user => user.Role != UserRole.Administrators)

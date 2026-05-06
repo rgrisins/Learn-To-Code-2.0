@@ -67,7 +67,7 @@ public class ProfileController : ControllerBase
             return Unauthorized();
         }
 
-        // Username DB jau ir lowercase + trim (FullName ir computed no FirstName + LastName)
+        // Lietotājvārds datubāzē jau ir ar mazajiem burtiem un bez liekām atstarpēm.
         user.Username = request.Username.Trim().ToLowerInvariant();
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
@@ -85,7 +85,7 @@ public class ProfileController : ControllerBase
             return BadRequest(new { message = "Apraksts nedrīkst pārsniegt 500 rakstzīmes." });
         }
 
-        // Paroles maiņa, ja iesniegti abi (current + new) lauki
+        // Paroles maiņa notiek tikai tad, ja iesniegta pašreizējā un jaunā parole.
         if (!string.IsNullOrWhiteSpace(request.NewPassword))
         {
             if (string.IsNullOrWhiteSpace(request.CurrentPassword))
@@ -141,8 +141,7 @@ public class ProfileController : ControllerBase
         }
 
         // Vēsturiski daži ieraksti DB var saturēt jaukto reģistru lietotājvārdus,
-        // tāpēc salīdzinām caur LOWER() (kas izmanto migrate_users.sql izveidoto
-        // funkcionālo indeksu) un nepaļaujamies uz case-sensitive ==.
+        // tāpēc salīdzinām caur LOWER() un nepaļaujamies uz reģistrjutīgu ==.
         var user = await _dbContext.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(

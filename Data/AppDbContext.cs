@@ -52,7 +52,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
-            // FullName ir computed property (FirstName + LastName) — netiek glabāts.
+            // FullName ir aprēķināma īpašība (FirstName + LastName), kas netiek glabāta datubāzē.
             entity.Ignore(user => user.FullName);
 
             entity.Property(user => user.Username).HasMaxLength(100);
@@ -66,10 +66,10 @@ public class AppDbContext : DbContext
             entity.Property(user => user.Rating).HasDefaultValue(1000);
             entity.Property(user => user.Role).HasConversion<string>().HasMaxLength(32);
 
-            // Unikalitāte tiek panākta ar LOWER() funkcijas indeksu DB pusē
+            // Unikalitāte tiek panākta ar LOWER() funkcijas indeksu datubāzes pusē
             // (skat. migrate_users.sql). EF Core līmenī šeit nedrīkst būt
-            // HasIndex(...).IsUnique() uz Username/Email, jo tas mēģinātu izveidot
-            // parastu unikālo indeksu, kas nepārklās case-insensitive lookups.
+            // HasIndex(...).IsUnique() uz lietotājvārdu/e-pastu, jo tas mēģinātu izveidot
+            // parastu unikālo indeksu, kas nepārklāj reģistrnejutīgus meklējumus.
         });
 
         modelBuilder.Entity<RoleRequest>(entity =>

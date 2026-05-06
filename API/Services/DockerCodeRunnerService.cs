@@ -15,10 +15,10 @@ public class CodeRunResult
 
 public class DockerCodeRunnerService
 {
-    // Per-test code execution timeout (enforced inside the container).
+    // Viena testa izpildes limits, ko ievēro konteinera iekšienē.
     public static readonly TimeSpan ExecutionTimeout = TimeSpan.FromSeconds(5);
 
-    // Buffer added to the overall container timeout for compile/setup overhead.
+    // Papildu laiks kompilēšanai un konteinera sagatavošanai.
     private static readonly TimeSpan BatchOverhead = TimeSpan.FromSeconds(20);
 
     private readonly string? _dockerHost;
@@ -32,7 +32,7 @@ public class DockerCodeRunnerService
         _dockerHost = configuration["Docker:Host"];
     }
 
-    // -- Single-test execution (kept for ad-hoc / single-input usage) -------
+    // Viena testa izpilde atsevišķiem pārbaudes gadījumiem.
 
     private static string BuildPythonScript(string userCode, string testInput)
     {
@@ -63,13 +63,12 @@ public class DockerCodeRunnerService
         return batch[0];
     }
 
-    // -- Batch execution: ALL tests in ONE container ------------------------
+    // Vairāku testu izpilde vienā konteinerā.
 
     /// <summary>
-    /// Runs <paramref name="inputs"/> against the user code inside a single
-    /// Docker container. Compile / interpreter startup happens once. As each
-    /// test result becomes available, <paramref name="onResult"/> is invoked
-    /// (preserving streaming UX), and the result is also returned in order.
+    /// Palaiž lietotāja kodu ar visiem testiem vienā Docker konteinerā.
+    /// Kompilēšana vai interpretatora startēšana notiek vienu reizi, bet
+    /// katrs testa rezultāts tiek atdots secīgi arī progresa plūsmai.
     /// </summary>
     public async Task<IReadOnlyList<CodeRunResult>> RunBatchAsync(
         string code,
@@ -119,11 +118,10 @@ public class DockerCodeRunnerService
         return results;
     }
 
-    // ---- Orchestrator builders ----
+    // Orķestratoru veidošana konkrētām valodām.
 
-    // Python orchestrator: writes user code to /tmp/u.py, then for each test
-    // input spawns a fresh `python3 /tmp/u.py` subprocess (so each test gets a
-    // clean module-level state, identical to the single-test behavior).
+    // Python kods katram testam tiek palaists jaunā procesā, lai testi
+    // neietekmētu cits citu ar globāliem mainīgajiem.
     private static string BuildPythonOrchestrator(string userCode, IReadOnlyList<string> inputs)
     {
         var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
@@ -188,9 +186,8 @@ for i, b64 in enumerate(INPUTS_B64):
 ";
     }
 
-    // Java orchestrator (bash): compile once, then run `java` in a loop with
-    // GNU `timeout` enforcing the per-test limit. Output uses the same
-    // sentinel framing as the Python orchestrator.
+    // Java kodu kompilē vienreiz, pēc tam katru testu palaiž ar atsevišķu
+    // ievadi un vienādu rezultātu marķēšanas formātu.
     private static string BuildJavaOrchestrator(string userCode, IReadOnlyList<string> inputs)
     {
         var codeB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(userCode));
@@ -199,8 +196,7 @@ for i, b64 in enumerate(INPUTS_B64):
         sb.AppendLine($"printf '%s' '{codeB64}' | base64 -d > /tmp/Main.java");
         sb.AppendLine("export LANG=C.UTF-8 LC_ALL=C.UTF-8");
         sb.AppendLine();
-        // Compile once. If compilation fails, emit one synthetic failed result
-        // for every test (so the API still gets aligned outputs).
+        // Ja kompilēšana neizdodas, katram testam atgriež vienādu kļūdu.
         sb.AppendLine("if ! javac -encoding UTF-8 -d /tmp /tmp/Main.java 2>/tmp/javac.err; then");
         sb.AppendLine("  COMPILE_ERR_B64=$(base64 -w0 < /tmp/javac.err)");
         sb.AppendLine($"  for i in $(seq 0 {inputs.Count - 1}); do");
@@ -216,7 +212,7 @@ for i, b64 in enumerate(INPUTS_B64):
         sb.AppendLine("fi");
         sb.AppendLine();
 
-        // Per-test execution loop.
+        // Katram testam sagatavo ievadi un nolasa izvadi.
         for (var i = 0; i < inputs.Count; i++)
         {
             var inputB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(inputs[i]));
@@ -236,7 +232,7 @@ for i, b64 in enumerate(INPUTS_B64):
         return sb.ToString();
     }
 
-    // ---- Container runner with streaming parser ----
+    // Konteinera palaišana un rezultātu nolasīšana plūsmā.
 
     private async Task<IReadOnlyList<CodeRunResult>> RunBatchInternalAsync(
         string image,
@@ -268,8 +264,7 @@ for i, b64 in enumerate(INPUTS_B64):
             startInfo.Environment["DOCKER_HOST"] = _dockerHost;
         }
 
-        // Slightly higher resource limits than single-test mode because the
-        // orchestrator + multiple subprocess spawns share the budget.
+        // Resursu limits ir kopīgs orķestratoram un visiem testa procesiem.
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--rm");
         startInfo.ArgumentList.Add("--network");
@@ -294,7 +289,7 @@ for i, b64 in enumerate(INPUTS_B64):
             startInfo.ArgumentList.Add(argument);
         }
 
-        // Overall container timeout = per-test * count + buffer (compile/pull/etc).
+        // Kopējais limits = viena testa limits * testu skaits + rezerves laiks.
         var overallTimeout = TimeSpan.FromSeconds(
             ExecutionTimeout.TotalSeconds * testCount) + BatchOverhead;
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -308,7 +303,7 @@ for i, b64 in enumerate(INPUTS_B64):
         {
             process.Start();
 
-            // Parse stdout streaming so onResult fires as each test finishes.
+            // Standarta izvade tiek lasīta plūsmā, lai progress parādītos pēc katra testa.
             var stdoutTask = Task.Run(async () =>
             {
                 await ParseOrchestratorOutputAsync(process.StandardOutput, results, onResult, timeoutCts.Token);
@@ -322,8 +317,7 @@ for i, b64 in enumerate(INPUTS_B64):
             await process.WaitForExitAsync(timeoutCts.Token);
             await Task.WhenAll(stdoutTask, stderrTask);
 
-            // Any test slot still null = orchestrator exited early. Fill with
-            // the docker stderr so the user sees what went wrong.
+            // Ja kāds tests nav atgriezts, parāda konteinera kļūdas tekstu.
             var orchestratorStderr = await stderrTask;
             for (var i = 0; i < testCount; i++)
             {
@@ -344,7 +338,7 @@ for i, b64 in enumerate(INPUTS_B64):
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             TryKillProcess(process);
-            // Mark all unfinished tests as timed out.
+            // Nepabeigtie testi tiek atzīmēti kā pārsnieguši laiku.
             for (var i = 0; i < testCount; i++)
             {
                 results[i] ??= new CodeRunResult { TimedOut = true, ExitCode = -1 };
@@ -361,12 +355,12 @@ for i, b64 in enumerate(INPUTS_B64):
         }
     }
 
-    // Parses the sentinel-framed stdout written by the orchestrators.
-    // Frame format:
+    // Nolasa orķestratoru marķēto standarta izvadi.
+    // Kadra formāts:
     //     ===TEST===<i>===
-    //     <base64 stdout>
+    //     <base64 standarta izvade>
     //     ===STDERR===
-    //     <base64 stderr>
+    //     <base64 kļūdu izvade>
     //     ===EXIT===<code>===
     //     ===TIMEOUT===<0|1>===
     //     ===END===
@@ -381,7 +375,7 @@ for i, b64 in enumerate(INPUTS_B64):
         string? stderrB64 = null;
         int exitCode = 0;
         bool timedOut = false;
-        var stage = 0; // 0=expect TEST, 1=expect stdout b64, 2=expect STDERR, 3=expect stderr b64, 4=expect EXIT, 5=expect TIMEOUT, 6=expect END
+        var stage = 0; // 0=TEST, 1=izvade b64, 2=STDERR, 3=kļūdu izvade b64, 4=EXIT, 5=TIMEOUT, 6=END
 
         while (!ct.IsCancellationRequested)
         {
@@ -448,11 +442,11 @@ for i, b64 in enumerate(INPUTS_B64):
                             if (onResult is not null)
                             {
                                 try { await onResult(currentIndex, result, ct); }
-                                catch { /* swallow — progress reporting must not abort the run */ }
+                                catch { /* Progresa nosūtīšanas kļūda nedrīkst apturēt koda izpildi. */ }
                             }
                         }
 
-                        // Reset for next frame.
+                        // Sagatavo nolasīšanu nākamajam kadram.
                         stdoutB64 = null;
                         stderrB64 = null;
                         exitCode = 0;
@@ -489,7 +483,7 @@ for i, b64 in enumerate(INPUTS_B64):
         }
         catch
         {
-            // The process may have exited between the timeout and cleanup.
+            // Process var būt beidzies starp laika limita sasniegšanu un tīrīšanu.
         }
     }
 }

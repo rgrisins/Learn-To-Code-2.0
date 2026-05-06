@@ -173,7 +173,7 @@ public class TheoryProgressService
         }
         catch
         {
-            // Progress storage still works without Redis cache invalidation.
+            // Progress joprojām tiek saglabāts datubāzē arī bez Redis keša.
         }
     }
 
@@ -191,7 +191,7 @@ public class TheoryProgressService
         }
         catch
         {
-            // Progress storage still works without Redis cache invalidation.
+            // Progress joprojām tiek saglabāts datubāzē arī bez Redis keša.
         }
     }
 
@@ -386,10 +386,11 @@ public class TheoryProgressService
         }
         catch
         {
-            // Cache misses are acceptable here.
+            // Keša kļūda šeit nedrīkst apturēt progresa aprēķinu.
         }
     }
 
+    // Keša atslēgā iekļauj versijas, lai pēc satura vai lietotāja progresa izmaiņām dati pārrēķinātos.
     private async Task<string> BuildUserCacheKeyAsync(int userId, string suffix, CancellationToken cancellationToken)
     {
         var globalVersion = await GetCacheVersionAsync(GetGlobalVersionKey(), cancellationToken);

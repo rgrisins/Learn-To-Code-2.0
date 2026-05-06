@@ -19,6 +19,7 @@ public class JwtTokenService : ITokenService
     public TokenGenerationResult CreateToken(User user, string sessionId)
     {
         var jwtId = Guid.NewGuid().ToString("N");
+        // Tokenā saglabā minimālos datus tiesību un Redis sesijas pārbaudei.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
